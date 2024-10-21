@@ -6,6 +6,8 @@ Welcome to the Proslearn project!
 
 Proslearn is a project from CompLDL at HKU. It aims to investigate the effect of length of exposure to non-full range sounds (i.e. in utero condition) to the learning of different aspects of phonetic and phonological learning, of which the first step is prosody learning. 
 
+This repo is stored on 22TB disk of the server, thus called proslearn_22
+
 ## Features
 
 - **Prosodic Analysis**: Tools for analyzing intonation, stress, and rhythm in speech.
