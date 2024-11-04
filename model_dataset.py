@@ -13,7 +13,6 @@ import numpy as np
 # import librosa
 
 from misc_tools import AudioCut
-from model_filter import XpassFilter
 from PretermDataLoader import DataLoader as PretermDataLoader
 
 class DS_Tools:
@@ -252,7 +251,7 @@ class ConstructDatasetGroup:
 
     NOTE: This function does not check the existence of meta files. Thus it should be checked in training code. 
     """
-    def __init__(self, src_path, filename, target_dir, target_name): 
+    def __init__(self, src_path, all_meta_filename, target_dir, target_name): 
         """
         Initializes the ConstructDatasetGroup object.
 
@@ -266,7 +265,8 @@ class ConstructDatasetGroup:
             None
         """
         raw_data_loader = PretermDataLoader(src_path)
-        all_meta = raw_data_loader.get_metadata(filename)  # get metadata, NOTE: has to be called before other use. 
+        all_meta = raw_data_loader.get_metadata(all_meta_filename)  # get metadata, NOTE: has to be called before other use. 
+        all_meta['index'] = all_meta.index
         all_size = len(all_meta)    # size of the whole dataset.
 
         self.all_meta = all_meta
@@ -299,8 +299,11 @@ class ConstructDatasetGroup:
 
         for i in range(num_dataset): 
             data, indexes = self.raw_data_loader.load_data(data_type, size_sample)   # load the data (full)
-            data_lowpass = self.raw_data_loader.load_data(f"lowpass_{data_type}", size_sample)   # load the data (low)
-            data_highpass = self.raw_data_loader.load_data(f"highpass_{data_type}", size_sample)   # load the data (high)
+            print(f"Dataset {self.target_name}-{i}-full loaded.")
+            data_lowpass, _ = self.raw_data_loader.load_data(f"lowpass_{data_type}", size_sample, indexes)   # load the data (low)
+            print(f"Dataset {self.target_name}-{i}-low loaded.")
+            data_highpass, _ = self.raw_data_loader.load_data(f"highpass_{data_type}", size_sample, indexes)   # load the data (high)
+            print(f"Dataset {self.target_name}-{i}-high loaded.")
             selcol_meta = selcol_all_meta.iloc[indexes]  # select the corresponding metadata
             # save the metadata
             selcol_meta.to_csv(os.path.join(self.target_dir, f"{self.target_name}-{i}.csv"), index=False)
@@ -308,7 +311,6 @@ class ConstructDatasetGroup:
             np.save(os.path.join(self.target_dir, f"{self.target_name}-full-{i}.npy"), np.array(data))
             np.save(os.path.join(self.target_dir, f"{self.target_name}-low-{i}.npy"), np.array(data_lowpass))
             np.save(os.path.join(self.target_dir, f"{self.target_name}-high-{i}.npy"), np.array(data_highpass))
-            print(f"Dataset {self.target_name}-{i} saved.")
 
 
 class SyllableDatasetNew(Dataset): 

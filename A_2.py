@@ -42,7 +42,7 @@ from misc_tools import get_timestamp, ARPABET
 from model_dataset import DS_Tools, Padder, TokenMap, NormalizerKeepShape
 from model_dataset import SyllableDatasetNew as ThisDataset
 from model_dataset import ConstructDatasetGroup
-from model_filter import XpassFilter
+# from model_filter import XpassFilter
 from paths import *
 from misc_progress_bar import draw_progress_bar
 from misc_recorder import *
@@ -492,12 +492,14 @@ if __name__ == "__main__":
             mymap = TokenMap(mylist)
 
             dg_cons_train = ConstructDatasetGroup(
-                all_meta_path=os.path.join(src_eng_, "guide_train_syllableInfor.pkl"),
+                src_path=src_eng_, 
+                all_meta_filename="guide_train_syllableInfor.pkl",
                 target_dir=guides_dir, 
                 target_name="train"
             )
             dg_cons_valid = ConstructDatasetGroup(
-                all_meta_path=os.path.join(src_eng_, "guide_test_syllableInfor.pkl"),   # NOTE: we are actually using the test set as validation set, but it is fine, just switch. 
+                src_path=src_eng_, 
+                all_meta_filename="guide_test_syllableInfor.pkl",   # NOTE: we are actually using the test set as validation set, but it is fine, just switch. 
                 target_dir=guides_dir,
                 target_name="valid"
             )
@@ -505,14 +507,14 @@ if __name__ == "__main__":
             # Construct and Save
             dg_cons_train.construct(
                 num_dataset=50, 
-                num_per_dataset=1600, 
+                size_dataset=1600, 
                 absolute_size=True, 
                 data_type="mel", 
                 select_column=['stress_type','index']
             )
             dg_cons_valid.construct(
                 num_dataset=50,
-                num_per_dataset=320,
+                size_dataset=320,
                 absolute_size=True,
                 data_type="mel",
                 select_column=['stress_type','index']

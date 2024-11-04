@@ -20,14 +20,14 @@ ss=('full')
 
 # Generate a 10-digit random number
 ts=$(date +"%m%d%H%M%S")
-# ts="0324233831"
+ts="1105012130"
 echo "Timestamp: $ts"
 # ts="0121181130"
 
 # Loop from 1 to 10, incrementing by 1
 for (( i=1; i<=5; i++ )); do
     # Loop over each combination of arguments
-    python A_2.py -ts "$ts-$i" -dp
+    python A_2.py -ts "$ts-$i" -dp &
 done
 
 # Wait for all background processes to finish
