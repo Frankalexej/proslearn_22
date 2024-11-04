@@ -336,6 +336,7 @@ class SyllableDatasetNew(Dataset):
         meta_file["stress_type"] = meta_file["stress_type"].astype(str) # convert to string for token mapping. 
 
         self.dataset = torch.from_numpy(data).clone()   # transform to tensor for PyTorch, clone to avoid in-place operation. 
+        self.dataset = self.dataset.permute(0, 2, 1)    # (datanum, feature_dim, length) -> (datanum, length, feature_dim)
         self.gt_set = meta_file["stress_type"].tolist() # ground truth set
         if mapper: 
             self.mapper = mapper
