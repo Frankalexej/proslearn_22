@@ -1,11 +1,8 @@
 import os
 
 root_ = "../"   # hyperpath of here
-# using english as default, to facilitate code transferbnd_detect_tools
-src_eng_ = root_ + "/src/eng/"
-projects_ = "../../"
-train_audio_ = projects_ + "wavln/src/eng/train-clean-100-audio/"
-train_cut_syllable_ = src_eng_ + "train-clean-100-cs/"
+root_hd_ = '/mnt/storage/compling/proslearn/'    # hyperpath of harddisk
+src_eng_ = root_hd_ + "/src/eng/"
 
 debug_ = src_eng_ + "debug/"
 

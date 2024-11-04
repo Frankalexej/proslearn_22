@@ -40,7 +40,8 @@ from H_1_models import SmallNetwork, MediumNetwork, LargeNetwork, ResLinearNetwo
 from model_configs import ModelDimConfigs, TrainingConfigs
 from misc_tools import get_timestamp, ARPABET
 from model_dataset import DS_Tools, Padder, TokenMap, NormalizerKeepShape
-from model_dataset import SyllableDataset as ThisDataset
+from model_dataset import SyllableDatasetNew as ThisDataset
+from model_dataset import ConstructDatasetGroup
 from model_filter import XpassFilter
 from paths import *
 from misc_progress_bar import draw_progress_bar
@@ -477,58 +478,47 @@ if __name__ == "__main__":
         ## Hyper-preparations
         # ts = str(get_timestamp())
         ts = args.timestamp
-        train_name = "A1"
+        train_name = "A2"
         model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}")
         print(f"{train_name}-{ts}")
         mk(model_save_dir) 
 
         if args.dataprepare: 
+            # Data Preparation
+            guides_dir = os.path.join(model_save_dir, "guides") # for saving metadata and data
+            mk(guides_dir)
             ### Get Data (Not Loading)
-            mytrans = None
-
-            # with open(os.path.join(src_eng_, "no-stress-seg.dict"), "rb") as file:
-            #     # Load the object from the file
-            #     mylist = pickle.load(file)
-            #     mylist.remove("AH")
-
-            # select_consonants = ARPABET.intersect_lists(mylist, ARPABET.list_consonants())
-            # select_vowels = ARPABET.intersect_lists(mylist, ARPABET.list_vowels())
-            # select_full = mylist
             mylist = ["0", "1", "2"]
-            select = mylist
             mymap = TokenMap(mylist)
 
+            dg_cons_train = ConstructDatasetGroup(
+                all_meta_path=os.path.join(src_eng_, "guide_train_syllableInfor.pkl"),
+                target_dir=guides_dir, 
+                target_name="train"
+            )
+            dg_cons_valid = ConstructDatasetGroup(
+                all_meta_path=os.path.join(src_eng_, "guide_test_syllableInfor.pkl"),   # NOTE: we are actually using the test set as validation set, but it is fine, just switch. 
+                target_dir=guides_dir,
+                target_name="valid"
+            )
 
-            for select, savename, use_proportion in zip([select], 
-                                                                    ["full"], 
-                                                                    [0.01]):
-                train_ds = ThisDataset(train_cut_syllable_, 
-                                    os.path.join(src_eng_, "guide_train_mod.csv"), 
-                                    select=select, 
-                                    mapper=mymap, 
-                                    transform=mytrans)
-                valid_ds = ThisDataset(train_cut_syllable_, 
-                                    os.path.join(src_eng_, "guide_validation_mod.csv"), 
-                                    select=select, 
-                                    mapper=mymap,
-                                    transform=mytrans)
-
-                # train data
-                use_len = int(use_proportion * len(train_ds))
-                remain_len = len(train_ds) - use_len
-                use_train_ds, remain_ds = random_split(train_ds, [use_len, remain_len])
-
-                # valid data
-                use_len = int(use_proportion * len(valid_ds))
-                remain_len = len(valid_ds) - use_len
-                use_valid_ds, remain_ds = random_split(valid_ds, [use_len, remain_len])
-
-                # NOTE: we don't need to save the cut-small subset, because after cutting-small, 
-                # the saved train and valid separations will reflect this
-                DS_Tools.save_indices(os.path.join(model_save_dir, f"train_{savename}.use"), use_train_ds.indices)
-                DS_Tools.save_indices(os.path.join(model_save_dir, f"valid_{savename}.use"), use_valid_ds.indices)
-                print(len(use_train_ds), len(use_valid_ds))
+            # Construct and Save
+            dg_cons_train.construct(
+                num_dataset=50, 
+                num_per_dataset=1600, 
+                absolute_size=True, 
+                data_type="mel", 
+                select_column=['stress_type','index']
+            )
+            dg_cons_valid.construct(
+                num_dataset=50,
+                num_per_dataset=320,
+                absolute_size=True,
+                data_type="mel",
+                select_column=['stress_type','index']
+            )
         else: 
+            # TODO: not finished changing. 
             torch.cuda.set_device(args.gpu)
             run_once(model_save_dir, model_type=args.model, pretype=args.pretype, posttype="f", sel=args.select, 
                         preepochs=args.preepochs, postepochs=(40 - args.preepochs))

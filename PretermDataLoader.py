@@ -24,11 +24,11 @@ class DataLoader():
         randomly select certain amount of data
 
     """
-    def __init__(self):
+    def __init__(self, sourceFolder='/mnt/storage/compling/proslearn/src/eng'):
         '''
         initialize a data loader
         '''
-        self.sourceFolder = '/mnt/storage/compling/proslearn/src/eng'
+        self.sourceFolder = sourceFolder    # Frank 20241105: changed to configurable sourceFolder path
         self.typedict = ['spectrograms','mels','highpass_spectrograms','lowpass_spectrograms','highpass_mels','lowpass_mels']
         self.metapath = None
         self.metadata = None
