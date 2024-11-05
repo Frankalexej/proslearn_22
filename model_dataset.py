@@ -261,7 +261,10 @@ class SyllableDatasetNew(Dataset):
         meta_file["stress_type"] = meta_file["stress_type"].astype(str) # convert to string for token mapping. 
 
         self.dataset = torch.from_numpy(data)   # transform to tensor for PyTorch, don't have to clone, we will not modify the data. 
-        self.dataset = self.dataset.permute(0, 2, 1)    # (datanum, feature_dim, length) -> (datanum, length, feature_dim)
+        # self.dataset = self.dataset.permute(0, 2, 1)    # (datanum, feature_dim, length) -> (datanum, length, feature_dim)
+        """We should keep this structure, because CNN takes in such a structure. """
+        # In addition, add one more axis in after datanum. When loading with batch, the shape should be (B, 1, F, L)
+        self.dataset = self.dataset.unsqueeze(1)
         self.gt_set = meta_file["stress_type"].tolist() # ground truth set
         if mapper: 
             self.mapper = mapper

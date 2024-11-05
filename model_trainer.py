@@ -10,7 +10,7 @@ class ModelTrainer:
     different data, we should update the train and evaluate functions. 
     """
 
-    def __init__(self, model, optimizer, criterion, model_save_dir, device='cuda'):
+    def __init__(self, model, criterion, optimizer, model_save_dir, device='cuda'):
         """
         Initializes the ModelTrainer.
 
@@ -22,8 +22,15 @@ class ModelTrainer:
             device (str): Device to use for training. Default is 'cuda'.
         """
         self.model = model
-        self.optimizer = optimizer
         self.criterion = criterion
+        self.optimizer = optimizer
+        """
+        At the moment we don't use scheduler, because we have multiple small datasets and 
+        we want to keep track of the learning curve; if the scheduler is used, the learning
+        rate will be updated automatically, and we may not be able to see the effect of learning. 
+        But rather the effect of the scheduler should be more obvious. 
+        """
+        # self.scheduler = scheduler
         self.device = device
         self.model_save_dir = model_save_dir
 
@@ -45,8 +52,9 @@ class ModelTrainer:
         train_total = 0
         for idx, (x, y) in enumerate(data_loader):
             self.optimizer.zero_grad()
-            x = x.to(self.device)
+            x = x.to(self.device, dtype=torch.float32)  # do forced conversion to float32, because full-set is float64
             y = y.to(self.device)
+            # y = torch.tensor(y, device=self.device)
 
             y_hat = self.model(x)
             loss = self.criterion(y_hat, y)
@@ -57,7 +65,8 @@ class ModelTrainer:
             pred = self.model.predict_on_output(y_hat)
             train_total += y_hat.size(0)
             train_correct += (pred == y).sum().item()
-
+        
+        # self.scheduler.step()
         last_model_name = f"{epoch}.pt"
         torch.save(self.model.state_dict(), os.path.join(self.model_save_dir, last_model_name))
         return train_loss / train_num, train_correct / train_total
@@ -82,8 +91,9 @@ class ModelTrainer:
 
         with torch.no_grad():
             for idx, (x, y) in enumerate(dataloader):
-                x = x.to(self.device)
+                x = x.to(self.device, dtype=torch.float32)
                 y = y.to(self.device)
+                # y = torch.tensor(y, device=self.device)
 
                 y_hat = self.model(x)
                 loss = self.criterion(y_hat, y)

@@ -4,6 +4,59 @@ import torch.nn as nn
 ####################################################################################################
 # Our model sizing keeps the linear layer in-outs same, while only changing the convolutional layers
 ####################################################################################################
+# New Small Model
+class TwoConvNetwork(nn.Module):
+    def __init__(self):
+        super(TwoConvNetwork, self).__init__()
+        self.conv = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1), 
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),  # Reduces dimensions by half
+            
+            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),  # Reduces dimensions by another half
+        )
+        
+        # Adaptive pooling to ensure a consistent, small output size regardless of input
+        self.ap = nn.AdaptiveAvgPool2d(output_size=(4, 4))  # Downsample to 4x4 spatial size
+
+        # Fully connected layers with a smaller input size
+        self.lin_1 = nn.Sequential(
+            nn.Linear(32 * 4 * 4, 64),  # Reduced input size
+            nn.Dropout(0.5),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+        )
+        self.lin = nn.Linear(in_features=64, out_features=38)
+
+        # Initialize weights
+        self.apply(self.init_weights)
+
+    def init_weights(self, m):
+        if isinstance(m, nn.Conv2d):
+            torch.nn.init.kaiming_normal_(m.weight, a=0.1)
+            if m.bias is not None:
+                m.bias.data.zero_()
+        elif isinstance(m, nn.Linear):
+            torch.nn.init.kaiming_normal_(m.weight, a=0.1)
+            m.bias.data.fill_(0.01)
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.ap(x)  # Adaptive pooling to 4x4
+        x = x.view(x.size(0), -1)  # Flatten
+        x = self.lin_1(x)
+        x = self.lin(x)
+        return x
+
+    def predict_on_output(self, output): 
+        output = nn.Softmax(dim=1)(output)
+        preds = torch.argmax(output, dim=1)
+        return preds
+
 # Small Model
 class SmallNetwork(nn.Module):
     def __init__(self):

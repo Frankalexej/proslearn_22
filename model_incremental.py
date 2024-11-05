@@ -8,9 +8,11 @@ import pandas as pd
 import random
 import math
 from collections import OrderedDict, deque, Counter
+from torch.utils.data import DataLoader
 
 # Import custom modules
 from PretermDataLoader import DataLoader as PretermDataLoader
+from model_configs import TrainingConfigs
 
 
 class ConstructDatasetGroup: 
@@ -90,7 +92,7 @@ class SubsetCache:
     Utilizes a Least Recently Used (LRU)
     eviction policy to manage memory efficiently by limiting the number of subsets stored at a time.
     """
-    def __init__(self, max_cache_size, dataset_class): 
+    def __init__(self, max_cache_size, dataset_class, shuffle=True): 
         """
         Initializes the SubsetCache object.
 
@@ -102,6 +104,8 @@ class SubsetCache:
         self.cache = OrderedDict()  # Cache for subsets (with LRU eviction policy)
         self.max_cache_size = max_cache_size
         self.dataset_class = dataset_class  # The class of the dataset to be stored and loaded in the cache.
+        self.batch_size = TrainingConfigs.BATCH_SIZE
+        self.loader_worker = TrainingConfigs.LOADER_WORKER
 
     def get_subset(self, subset_id, subset_meta_path, subset_data_path, subset_mapper=None): 
         """
@@ -114,8 +118,8 @@ class SubsetCache:
             subset_mapper (optional): An optional mapper object for custom data handling; default is None.
 
         Returns:
-            dataset (dataset_class): An instance of the dataset class for the specified subset, either loaded from
-                                     cache or newly created and added to the cache.
+            dataloader (DataLoader): A DataLoader object for the subset.
+                                     
         """
         # Check if subset is in cache
         if subset_id in self.cache: 
@@ -125,6 +129,7 @@ class SubsetCache:
         
         # Load from disk if not in cache
         dataset = self.dataset_class(subset_meta_path, subset_data_path, subset_mapper)
+        dataloder = DataLoader(dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.loader_worker)
         
         # Add to cache
         if len(self.cache) >= self.max_cache_size:
@@ -132,8 +137,8 @@ class SubsetCache:
             self.cache.popitem(last=False)
         
         # Store the new subset in cache and mark it as most recently used
-        self.cache[subset_id] = dataset
-        return dataset
+        self.cache[subset_id] = dataloder
+        return dataloder
 
 
 class LearningPathPlanner:
@@ -226,9 +231,9 @@ class PoolMessanger:
     This is because LearningPathPlanner only operates on the dataset IDs. 
     While loading datasets needs filenames of data and meta. 
     """
-    META_SUFFIX = ".csv"
-    DATA_SUFFIX = ".npy"
-    def __init__(self, num_dataset, non_full_type="low", full_type="full"): 
+    META_SUFFIX = "csv"
+    DATA_SUFFIX = "npy"
+    def __init__(self, num_dataset, non_full_type="low", full_type="full", read_dir=None): 
         """
         Args:
             num_dataset (int): The number of datasets in the pool.
@@ -241,6 +246,7 @@ class PoolMessanger:
         self.pool = list(range(num_dataset))
         self.non_full_type = non_full_type
         self.full_type = full_type
+        self.read_dir = read_dir
         self.full_on = False # marking whether the dataset is filtered or full. 
     
     def get_pool(self): 
@@ -252,10 +258,17 @@ class PoolMessanger:
     def turn_off_full(self):
         self.full_on = False
     
-    def get_loading_params(self, dataset_id, train_status="train"): 
-        filter_type = self.non_full_type if not self.full_on else self.full_type
+    def get_loading_params(self, dataset_id, eval_type="train"): 
+        if eval_type == "train" or eval_type == "valid": 
+            filter_type = self.non_full_type if not self.full_on else self.full_type
 
-        meta_path = f"{train_status}-{dataset_id}.{self.META_SUFFIX}"
-        data_path = f"{train_status}-{filter_type}-{dataset_id}.{self.DATA_SUFFIX}"
+            meta_path = f"{eval_type}-{dataset_id}.{self.META_SUFFIX}"
+            data_path = f"{eval_type}-{filter_type}-{dataset_id}.{self.DATA_SUFFIX}"
+        
+        elif eval_type == "full_valid":
+            meta_path = f"valid-{dataset_id}.{self.META_SUFFIX}"
+            data_path = f"valid-full-{dataset_id}.{self.DATA_SUFFIX}"
 
-        return dataset_id, meta_path, data_path
+        print(f"Loading {data_path}")
+
+        return dataset_id, os.path.join(self.read_dir, meta_path), os.path.join(self.read_dir, data_path)

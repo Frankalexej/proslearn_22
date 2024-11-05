@@ -36,96 +36,16 @@ import torch.nn.functional as F
 from torch.nn import init
 import argparse
 
-from H_1_models import SmallNetwork, MediumNetwork, LargeNetwork, ResLinearNetwork, LSTMNetwork
-from model_configs import ModelDimConfigs, TrainingConfigs
-from misc_tools import get_timestamp, ARPABET
-from model_dataset import DS_Tools, Padder, TokenMap, NormalizerKeepShape
+from H_1_models import SmallNetwork, MediumNetwork, LargeNetwork, ResLinearNetwork, LSTMNetwork, TwoConvNetwork
+from model_dataset import TokenMap
 from model_dataset import SyllableDatasetNew as ThisDataset
 from model_incremental import *
 from model_trainer import ModelTrainer
 # from model_filter import XpassFilter
 from paths import *
-from misc_progress_bar import draw_progress_bar
 from misc_recorder import *
 from H_2_drawer import draw_learning_curve_and_accuracy
 
-
-
-# Data Loader
-def load_data(type="f", sel="full", load="train"):
-    if type == "l":
-        mytrans = nn.Sequential(
-            Padder(sample_rate=TrainingConfigs.REC_SAMPLE_RATE, pad_len_ms=250, noise_level=1e-4), 
-            XpassFilter(cut_off_upper=500),
-            torchaudio.transforms.MelSpectrogram(TrainingConfigs.REC_SAMPLE_RATE, 
-                                                n_mels=TrainingConfigs.N_MELS, 
-                                                n_fft=TrainingConfigs.N_FFT, 
-                                                power=2), 
-            torchaudio.transforms.AmplitudeToDB(stype="power", top_db=80), 
-            NormalizerKeepShape(NormalizerKeepShape.norm_mvn)
-        )
-    elif type == "h": 
-        mytrans = nn.Sequential(
-            Padder(sample_rate=TrainingConfigs.REC_SAMPLE_RATE, pad_len_ms=250, noise_level=1e-4), 
-            XpassFilter(cut_off_upper=10000, cut_off_lower=4000),
-            torchaudio.transforms.MelSpectrogram(TrainingConfigs.REC_SAMPLE_RATE, 
-                                                n_mels=TrainingConfigs.N_MELS, 
-                                                n_fft=TrainingConfigs.N_FFT, 
-                                                power=2), 
-            torchaudio.transforms.AmplitudeToDB(stype="power", top_db=80), 
-            NormalizerKeepShape(NormalizerKeepShape.norm_mvn)
-        )
-    else: 
-        mytrans = nn.Sequential(
-            Padder(sample_rate=TrainingConfigs.REC_SAMPLE_RATE, pad_len_ms=250, noise_level=1e-4), 
-            torchaudio.transforms.MelSpectrogram(TrainingConfigs.REC_SAMPLE_RATE, 
-                                                n_mels=TrainingConfigs.N_MELS, 
-                                                n_fft=TrainingConfigs.N_FFT, 
-                                                power=2), 
-            torchaudio.transforms.AmplitudeToDB(stype="power", top_db=80), 
-            NormalizerKeepShape(NormalizerKeepShape.norm_mvn)
-        )
-    # with open(os.path.join(src_, "no-stress-seg.dict"), "rb") as file:
-    #     # Load the object from the file
-    #     mylist = pickle.load(file)
-    #     mylist.remove('AH') # we don't include this, it is too mixed. 
-
-    select = ["0", "1", "2"]
-    mymap = TokenMap(select)
-    # if sel == "c": 
-    #     select = ARPABET.intersect_lists(mylist, ARPABET.list_consonants())
-    # elif sel == "v":
-    #     select = ARPABET.intersect_lists(mylist, ARPABET.list_vowels())
-    # else:
-    #     select = mylist
-    # Now you can use the loaded object
-    # mymap = TokenMap(mylist)
-    if load == "train": 
-        train_ds = ThisDataset(train_cut_syllable_, 
-                            os.path.join(src_eng_, "guide_train_mod.csv"), 
-                            select=select, 
-                            mapper=mymap, 
-                            transform=mytrans)
-        
-        train_ds_indices = DS_Tools.read_indices(os.path.join(model_save_dir, f"train_{sel}.use"))
-        use_train_ds = torch.utils.data.Subset(train_ds, train_ds_indices)
-        train_loader = DataLoader(use_train_ds, batch_size=TrainingConfigs.BATCH_SIZE, 
-                                shuffle=True, 
-                                num_workers=TrainingConfigs.LOADER_WORKER)
-        
-        return train_loader
-    elif load == "valid":
-        valid_ds = ThisDataset(train_cut_syllable_, 
-                            os.path.join(src_eng_, "guide_validation_mod.csv"), 
-                            select=select, 
-                            mapper=mymap,
-                            transform=mytrans)
-        valid_ds_indices = DS_Tools.read_indices(os.path.join(model_save_dir, f"valid_{sel}.use"))
-        use_valid_ds = torch.utils.data.Subset(valid_ds, valid_ds_indices)
-        valid_loader = DataLoader(use_valid_ds, batch_size=TrainingConfigs.BATCH_SIZE, 
-                                shuffle=False, 
-                                num_workers=TrainingConfigs.LOADER_WORKER)
-        return valid_loader
 
 def draw_learning_curve_and_accuracy(losses, accs, epoch="", best_val=None, save=False, save_name=""): 
     plt.clf()
@@ -174,17 +94,15 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
 
     model_save_dir = os.path.join(hyper_dir, f"{model_type}-{preepochs}-{postepochs}", sel, f"{pretype}{posttype}")
     mk(model_save_dir)
+    guides_dir = os.path.join(hyper_dir, "guides")
 
     # Loss Recording
     train_losses = ListRecorder(os.path.join(model_save_dir, "train.loss"))
     valid_losses = ListRecorder(os.path.join(model_save_dir, "valid.loss"))
     full_valid_losses = ListRecorder(os.path.join(model_save_dir, "full_valid.loss"))
-
     train_accs = ListRecorder(os.path.join(model_save_dir, "train.acc"))
     valid_accs = ListRecorder(os.path.join(model_save_dir, "valid.acc"))
     full_valid_accs = ListRecorder(os.path.join(model_save_dir, "full_valid.acc"))
-
-    special_recs = DictRecorder(os.path.join(model_save_dir, "special.hst"))
 
     # Initialize Model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -199,31 +117,44 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
         model = ResLinearNetwork()
     elif model_type == "lstm": 
         model = LSTMNetwork()
+    elif model_type == "twoconvCNN": 
+        model = TwoConvNetwork()        
     else:
         raise Exception("Model not defined! ")
-    # model= nn.DataParallel(model)
-    # model = nn.DataParallel(model, device_ids=[0, 1])
     model.to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = optim.Adam(model.parameters(), lr=configs["lr"])
+    # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, 
+    #                                                        mode='min', 
+    #                                                        factor=0.1, 
+    #                                                        patience=10, 
+    #                                                        threshold=1e-4)
+    # CosineAnnealingLR(optimizer, T_max=10)
+    
+
+    # Save Model Summary
     model_str = str(model)
     model_txt_path = os.path.join(model_save_dir, "model.txt")
     with open(model_txt_path, "w") as f:
         f.write(model_str)
         f.write("\n")
-        f.write(str(summary(model, input_size=(128, 1, 64, 21))))
+        f.write(str(summary(model, input_size=(128, 1, 128, 126))))
+    
+    mylist = ["0", "1", "2"]
+    mymap = TokenMap(mylist)
 
     # Trainer
     trainer = ModelTrainer(model=model, 
-                           optimizer=optimizer, 
                            criterion=criterion, 
+                           optimizer=optimizer, 
                            model_save_dir=model_save_dir, device=device)
     # Dataset Loaders
     # pool messanger
-    pool_messanger = PoolMessanger(configs["num_dataset"], configs["data_type_mapper"][pretype], configs["data_type_mapper"][posttype])
+    pool_messanger = PoolMessanger(configs["num_dataset"], configs["data_type_mapper"][pretype], configs["data_type_mapper"][posttype], guides_dir)
 
     # NOTE: Subset Cache, this is to manage the reading of datasets. Should be transparent to user. 
-    train_cache = SubsetCache(max_cache_size=configs["max_cache_size"], dataset_class=ThisDataset)
-    valid_cache = SubsetCache(max_cache_size=configs["max_cache_size"], dataset_class=ThisDataset)
+    train_cache = SubsetCache(max_cache_size=configs["max_cache_size_train"], dataset_class=ThisDataset)
+    valid_cache = SubsetCache(max_cache_size=configs["max_cache_size_valid"], dataset_class=ThisDataset)
+    full_valid_cache = SubsetCache(max_cache_size=configs["max_cache_size_valid"], dataset_class=ThisDataset)
 
     # Learning Path Planner
     planner = LearningPathPlanner(dataset_ids=pool_messanger.get_pool(), 
@@ -241,146 +172,72 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
     """
 
     """Training"""
-
-
-
-    # Load Data (I&II)
-    train_loader_1 = load_data(type=pretype, sel="full", load="train")
-    valid_loader_1 = load_data(type=pretype, sel=sel, load="valid") # target 
-    train_loader_2 = load_data(type=posttype, sel="full", load="train")
-    valid_loader_2 = load_data(type=posttype, sel=sel, load="valid")    # full = trainlike (because this time we don't separate c/v)
-
-    # this is mainly to get the "improvement" for 
-    # only-full training models, because they naturally
-    # don't have a "transition" from nothing to 
-    # "having been trained on full"
     """No Learning Baseline Get"""
-    # Target Eval
-    model.eval()
-    valid_loss = 0.
-    valid_num = len(valid_loader_1)
-    valid_correct = 0
-    valid_total = 0
-    for idx, (x, y) in enumerate(valid_loader_1):
-        x = x.to(device)
-        y = y.to(device)
+    for epoch in range(0, 1):
+        # Training Data
+        dataset_id = learning_plan[epoch]
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id, 
+                                                                            eval_type="train")
+        train_loader = train_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        train_loss, train_acc = trainer.evaluate(train_loader)
+        train_losses.append(train_loss)
+        train_accs.append(train_acc)
 
-        y_hat = model(x)
-        loss = criterion(y_hat, y)
-        valid_loss += loss.item()
+        # Validation Data
+        dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
+                                                                            eval_type="valid")
+        valid_loader = valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        valid_loss, valid_acc = trainer.evaluate(valid_loader)
+        valid_losses.append(valid_loss)
+        valid_accs.append(valid_acc)
 
-        pred = model.predict_on_output(y_hat)
-
-        valid_total += y_hat.size(0)
-        valid_correct += (pred == y).sum().item()
-
-    special_recs.append(("notrain-target-loss", valid_loss / valid_num))
-    special_recs.append(("notrain-target-acc", valid_correct / valid_total))
-    special_recs.save()
-
-    # Full Eval
-    model.eval()
-    full_valid_loss = 0.
-    full_valid_num = len(valid_loader_2)
-    full_valid_correct = 0
-    full_valid_total = 0
-    for idx, (x, y) in enumerate(valid_loader_2):
-        x = x.to(device)
-        y = y.to(device)
-
-        y_hat = model(x)
-        loss = criterion(y_hat, y)
-        full_valid_loss += loss.item()
-
-        pred = model.predict_on_output(y_hat)
-
-        full_valid_total += y_hat.size(0)
-        full_valid_correct += (pred == y).sum().item()
-
-    special_recs.append(("notrain-full-loss", full_valid_loss / full_valid_num))
-    special_recs.append(("notrain-full-acc", full_valid_correct / full_valid_total))
-    special_recs.save()
+        # Full Validation Data
+        dataset_id = learning_plan[epoch]
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
+                                                                            eval_type="full_valid")
+        full_valid_loader = full_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        full_valid_loss, full_valid_acc = trainer.evaluate(full_valid_loader)
+        full_valid_losses.append(full_valid_loss)
+        full_valid_accs.append(full_valid_acc)
+    train_losses.save()
+    valid_losses.save()
+    full_valid_losses.save()
+    train_accs.save()
+    valid_accs.save()
+    full_valid_accs.save()
 
     # Train (I)
-    best_valid_loss = 1e9
-    best_valid_loss_epoch = 0
-    BASE = 0
+    base_epoch = 1
 
-    for epoch in range(BASE, BASE + preepochs):
-        model.train()
-        train_loss = 0.
-        train_num = len(train_loader_1)    # train_loader
-        train_correct = 0
-        train_total = 0
-        for idx, (x, y) in enumerate(train_loader_1):
-            optimizer.zero_grad()
-            x = x.to(device)
-            # y = torch.tensor(y, device=device)
-            y = y.to(device)
+    for epoch in range(base_epoch, base_epoch + preepochs): 
+        print(f"Epoch {epoch}")
+        # Training Data
+        dataset_id = learning_plan[epoch]
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id, 
+                                                                            eval_type="train")
+        train_loader = train_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        train_loss, train_acc = trainer.train(train_loader, epoch=epoch)  # this is the only difference. 
+        train_losses.append(train_loss)
+        train_accs.append(train_acc)
 
-            y_hat = model(x)
-            loss = criterion(y_hat, y)
-            train_loss += loss.item()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(parameters=model.parameters(), max_norm=5, norm_type=2)
-            optimizer.step()
-            pred = model.predict_on_output(y_hat)
-            train_total += y_hat.size(0)
-            train_correct += (pred == y).sum().item()
-            # draw_progress_bar(idx, train_num, title="Train")
+        # Validation Data
+        dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
+                                                                            eval_type="valid")
+        valid_loader = valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        valid_loss, valid_acc = trainer.evaluate(valid_loader)
+        valid_losses.append(valid_loss)
+        valid_accs.append(valid_acc)
 
-        train_losses.append(train_loss / train_num)
-        train_accs.append(train_correct / train_total)
-        last_model_name = f"{epoch}.pt"
-        torch.save(model.state_dict(), os.path.join(model_save_dir, last_model_name))
-
-        # Target Eval
-        model.eval()
-        valid_loss = 0.
-        valid_num = len(valid_loader_1)
-        valid_correct = 0
-        valid_total = 0
-        for idx, (x, y) in enumerate(valid_loader_1):
-            x = x.to(device)
-            y = y.to(device)
-
-            y_hat = model(x)
-            loss = criterion(y_hat, y)
-            valid_loss += loss.item()
-
-            pred = model.predict_on_output(y_hat)
-
-            valid_total += y_hat.size(0)
-            valid_correct += (pred == y).sum().item()
-
-        avg_valid_loss = valid_loss / valid_num
-        valid_losses.append(avg_valid_loss)
-        valid_accs.append(valid_correct / valid_total)
-        if avg_valid_loss < best_valid_loss: 
-            best_valid_loss = avg_valid_loss
-            best_valid_loss_epoch = epoch
-
-        # Full Eval
-        model.eval()
-        full_valid_loss = 0.
-        full_valid_num = len(valid_loader_2)
-        full_valid_correct = 0
-        full_valid_total = 0
-        for idx, (x, y) in enumerate(valid_loader_2):
-            x = x.to(device)
-            y = y.to(device)
-
-            y_hat = model(x)
-            loss = criterion(y_hat, y)
-            full_valid_loss += loss.item()
-
-            pred = model.predict_on_output(y_hat)
-
-            full_valid_total += y_hat.size(0)
-            full_valid_correct += (pred == y).sum().item()
-
-        full_valid_losses.append(full_valid_loss / full_valid_num)
-        full_valid_accs.append(full_valid_correct / full_valid_total)
+        # Full Validation Data
+        dataset_id = learning_plan[epoch]
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
+                                                                            eval_type="full_valid")
+        full_valid_loader = full_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        full_valid_loss, full_valid_acc = trainer.evaluate(full_valid_loader)
+        full_valid_losses.append(full_valid_loss)
+        full_valid_accs.append(full_valid_acc)
 
         train_losses.save()
         valid_losses.save()
@@ -396,73 +253,37 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
                                     save=True, 
                                     save_name=f"{model_save_dir}/vis.png")
 
-    # draw_learning_curve_and_accuracy(losses=(train_losses.get(), valid_losses.get(), full_valid_losses.get()), 
-    #                                 accs=(train_accs.get(), valid_accs.get(), full_valid_accs.get()),
-    #                                 epoch=str(BASE + preepochs - 1), 
-    #                                 save=True, 
-    #                                 save_name=f"{model_save_dir}/vis.png")
-    
-    # Pre Model Best
-    special_recs.append(("preval_epoch", best_valid_loss_epoch))
-    special_recs.save()
-
     # Train (II)
-    BASE = BASE + preepochs
-    for epoch in range(BASE, BASE + postepochs):
-        model.train()
-        train_loss = 0.
-        train_num = len(train_loader_2)    # train_loader
-        train_correct = 0
-        train_total = 0
-        for idx, (x, y) in enumerate(train_loader_2):
-            optimizer.zero_grad()
-            x = x.to(device)
-            y = y.to(device)
+    base_epoch_II = base_epoch + preepochs
+    pool_messanger.turn_on_full()   # turn on full data
+    for epoch in range(base_epoch_II, base_epoch_II + postepochs):
+        print(f"Epoch {epoch}")
+        # Training Data
+        dataset_id = learning_plan[epoch]
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id, 
+                                                                            eval_type="train")
+        train_loader = train_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        train_loss, train_acc = trainer.train(train_loader, epoch=epoch)  # this is the only difference. 
+        train_losses.append(train_loss)
+        train_accs.append(train_acc)
 
-            y_hat = model(x)
-            loss = criterion(y_hat, y)
-            train_loss += loss.item()
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(parameters=model.parameters(), max_norm=5, norm_type=2)
-            optimizer.step()
-            pred = model.predict_on_output(y_hat)
-            train_total += y_hat.size(0)
-            train_correct += (pred == y).sum().item()
-            # draw_progress_bar(idx, train_num, title="Train")
+        # Validation Data
+        dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
+                                                                            eval_type="valid")
+        valid_loader = valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        valid_loss, valid_acc = trainer.evaluate(valid_loader)
+        valid_losses.append(valid_loss)
+        valid_accs.append(valid_acc)
 
-        train_losses.append(train_loss / train_num)
-        train_accs.append(train_correct / train_total)
-        last_model_name = f"{epoch}.pt"
-        torch.save(model.state_dict(), os.path.join(model_save_dir, last_model_name))
-
-        # Target Eval
-        model.eval()
-        valid_loss = 0.
-        valid_num = len(valid_loader_2)
-        valid_correct = 0
-        valid_total = 0
-        for idx, (x, y) in enumerate(valid_loader_2):
-            x = x.to(device)
-            y = y.to(device)
-
-            y_hat = model(x)
-            loss = criterion(y_hat, y)
-            valid_loss += loss.item()
-
-            pred = model.predict_on_output(y_hat)
-
-            valid_total += y_hat.size(0)
-            valid_correct += (pred == y).sum().item()
-
-
-        avg_valid_loss = valid_loss / valid_num
-        valid_losses.append(avg_valid_loss)
-        full_valid_losses.append(avg_valid_loss)
-        valid_accs.append(valid_correct / valid_total)
-        full_valid_accs.append(valid_correct / valid_total)
-        if avg_valid_loss < best_valid_loss: 
-            best_valid_loss = avg_valid_loss
-            best_valid_loss_epoch = epoch
+        # Full Validation Data
+        dataset_id = learning_plan[epoch]
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
+                                                                            eval_type="full_valid")
+        full_valid_loader = full_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        full_valid_loss, full_valid_acc = trainer.evaluate(full_valid_loader)
+        full_valid_losses.append(full_valid_loss)
+        full_valid_accs.append(full_valid_acc)
 
         train_losses.save()
         valid_losses.save()
@@ -480,13 +301,10 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
 
     draw_learning_curve_and_accuracy(losses=(train_losses.get(), valid_losses.get(), full_valid_losses.get()), 
                                     accs=(train_accs.get(), valid_accs.get(), full_valid_accs.get()),
-                                    epoch=str(BASE + postepochs - 1), 
+                                    epoch=str(base_epoch_II + postepochs), 
                                     save=True, 
                                     save_name=f"{model_save_dir}/vis.png")
-    
-    # Post Model Best
-    special_recs.append(("postval_epoch", best_valid_loss_epoch))
-    special_recs.save()
+
 
 if __name__ == "__main__": 
     parser = argparse.ArgumentParser(description='argparse')
@@ -507,7 +325,8 @@ if __name__ == "__main__":
         "size_train": 1600, 
         "size_valid": 320,
         "data_type": "mel",
-        "total_epochs": 200, 
+        "total_epochs": 500, 
+        "lr": 1e-4,
         "data_type_mapper": {
             "f": "full", 
             "l": "low",
@@ -517,7 +336,8 @@ if __name__ == "__main__":
             "p1": 0.5, 
             "decay_rate": 0.3
         }, 
-        "max_cache_size": 5
+        "max_cache_size_train": 5, 
+        "max_cache_size_valid": 10
     }
     for run_time in range(RUN_TIMES):
         ## Hyper-preparations

@@ -96,6 +96,7 @@ class HistRecorder(Recorder):
         self.append(content)
         print(content)
 
+
 def draw_learning_curve(train_losses, valid_losses, title="Learning Curve Loss", epoch=""): 
     plt.clf()
     plt.plot(train_losses, label='Train')
