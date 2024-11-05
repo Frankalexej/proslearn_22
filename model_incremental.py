@@ -5,6 +5,8 @@ Here we put tools for incremental training.
 import os
 import numpy as np
 import pandas as pd
+import random
+import math
 from collections import OrderedDict, deque, Counter
 
 # Import custom modules
@@ -136,58 +138,83 @@ class SubsetCache:
 
 class LearningPathPlanner:
     """
-    A planner for generating a learning path from a pool of dataset IDs, controlling how frequently to revisit 
-    previously seen datasets.
+    A planner for generating a learning path from a pool of dataset IDs, where revisit probability exponentially decreases 
+    with each visit.
     """
 
-    def __init__(self, dataset_ids, revisit_frequency=3):
+    def __init__(self, dataset_ids, total_epochs, p1=0.5, decay_rate=0.5):
         """
         Initializes the LearningPathPlanner.
 
         Args:
             dataset_ids (list): List of dataset IDs representing the pool of available datasets.
-            revisit_frequency (int): Controls how often to revisit previously seen datasets.
-                                     A lower number means revisits occur sooner.
+            total_epochs (int): The total number of epochs for which to generate a learning path.
+            p1 (float): Probability of selecting a new dataset in each epoch (between 0 and 1).
+            decay_rate (float): The rate at which revisit probability decreases exponentially with each visit.
         """
-        self.dataset_ids = dataset_ids  # Pool of available dataset IDs
-        self.revisit_frequency = revisit_frequency
-        self.seen_datasets = deque(maxlen=revisit_frequency)  # Queue to track recently seen datasets
-        self.seen_count = Counter()  # Counter to keep track of how often each dataset has been seen
+        self.dataset_ids = dataset_ids  # Pool of dataset IDs
+        self.total_epochs = total_epochs
+        self.p1 = p1
+        self.decay_rate = decay_rate
+        self.new_datasets = set(dataset_ids)  # Datasets not yet seen
+        self.old_datasets = deque()  # Queue to track datasets that have been used
+        self.visit_count = Counter()  # Counter to track the number of visits for each dataset
+
+    def get_exponential_probability(self, visits):
+        """
+        Calculates the probability weight for a dataset based on its visit count using exponential decay.
+
+        Args:
+            visits (int): The number of times the dataset has been visited.
+
+        Returns:
+            float: The probability weight for the dataset.
+        """
+        return math.exp(-self.decay_rate * visits)
 
     def get_next_dataset(self):
         """
-        Determines the next dataset ID to use based on the learning path.
+        Determines the next dataset ID to use based on the learning path logic, with exponential decay in revisit probability.
 
         Returns:
             int: The ID of the next dataset to use for training.
         """
-        # Filter to prioritize unseen datasets or datasets seen least frequently
-        candidates = [ds for ds in self.dataset_ids if ds not in self.seen_datasets]
-        if not candidates:
-            # If all datasets have been seen recently, allow revisits based on least seen count
-            candidates = self.dataset_ids
+        # Decide whether to select a new or an old dataset based on probability p1
+        if self.new_datasets and random.random() < self.p1:
+            # Choose a new dataset
+            next_dataset = self.new_datasets.pop()
+            self.old_datasets.append(next_dataset)  # Move to old datasets
+            self.visit_count[next_dataset] = 0  # Initialize visit count
 
-        # Select the next dataset with priority to those seen least often
-        next_dataset = min(candidates, key=lambda ds: self.seen_count[ds])
+        else:
+            # Choose an old dataset with probability exponentially decreasing by visit count
+            if self.old_datasets:
+                # Calculate weights for old datasets based on exponential decay
+                weights = [self.get_exponential_probability(self.visit_count[ds]) for ds in self.old_datasets]
+                total_weight = sum(weights)
+                probabilities = [w / total_weight for w in weights]
 
-        # Update seen records
-        self.seen_datasets.append(next_dataset)
-        self.seen_count[next_dataset] += 1
+                # Randomly choose an old dataset based on calculated probabilities
+                next_dataset = random.choices(list(self.old_datasets), weights=probabilities, k=1)[0]
+                self.visit_count[next_dataset] += 1  # Increment visit count
+
+            else:
+                # Fallback to a new dataset if no old datasets are available
+                next_dataset = self.new_datasets.pop()
+                self.old_datasets.append(next_dataset)
+                self.visit_count[next_dataset] = 0
 
         return next_dataset
 
-    def generate_learning_path(self, num_epochs):
+    def generate_learning_path(self):
         """
-        Generates a full learning path for a specified number of epochs.
-
-        Args:
-            num_epochs (int): The total number of epochs for which to generate a learning path.
+        Generates a full learning path for the specified total number of epochs.
 
         Returns:
             list: A list of dataset IDs representing the planned learning path.
         """
         learning_path = []
-        for _ in range(num_epochs):
+        for _ in range(self.total_epochs):
             next_dataset = self.get_next_dataset()
             learning_path.append(next_dataset)
         return learning_path
