@@ -269,6 +269,4 @@ class PoolMessanger:
             meta_path = f"valid-{dataset_id}.{self.META_SUFFIX}"
             data_path = f"valid-full-{dataset_id}.{self.DATA_SUFFIX}"
 
-        print(f"Loading {data_path}")
-
         return dataset_id, os.path.join(self.read_dir, meta_path), os.path.join(self.read_dir, data_path)
