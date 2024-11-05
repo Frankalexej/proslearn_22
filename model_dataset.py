@@ -251,11 +251,6 @@ class SyllableDatasetNew(Dataset):
         select (list, optional): List of columns to select for token mapping; defaults to an empty list.
         mapper (TokenMap, optional): An optional TokenMap object for mapping tokens. If not provided, a new TokenMap is created using the 'select' list.
 
-    Attributes:
-        dataset (torch.Tensor): Tensor containing the syllable data loaded from the .npy file.
-        gt_set (list): List of ground truth labels for each syllable, converted to strings for compatibility with token mapping.
-        mapper (TokenMap): TokenMap object used to map tokens for the dataset.
-
     Returns:
         None
     """

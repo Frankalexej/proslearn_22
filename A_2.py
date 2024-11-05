@@ -41,7 +41,8 @@ from model_configs import ModelDimConfigs, TrainingConfigs
 from misc_tools import get_timestamp, ARPABET
 from model_dataset import DS_Tools, Padder, TokenMap, NormalizerKeepShape
 from model_dataset import SyllableDatasetNew as ThisDataset
-from model_dataset import ConstructDatasetGroup
+from model_incremental import *
+from model_trainer import ModelTrainer
 # from model_filter import XpassFilter
 from paths import *
 from misc_progress_bar import draw_progress_bar
@@ -154,21 +155,21 @@ def draw_learning_curve_and_accuracy(losses, accs, epoch="", best_val=None, save
     if save: 
         plt.savefig(save_name)
 
-def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full", preepochs=20, postepochs=20): 
+def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full", preepochs=20, postepochs=20, configs={}): 
     """
     Frank's Note: 
     This is the function for running the training and simultaneous validation once. 
     Although it is to be called by a "main" function, this whole .py file only runs the training once. 
     Multiple runnings are implemented with multi-processing using bash scripts (.sh).
 
-    Parameters: 
-    hyper_dir (str): the uppermost saving directory under model_save_, named as runner_name-timestamp-run_number. 
-    model_type (str): The type of model to be used. This includes "small", "medium", "large", "reslin", "lstm", etc. 
-    pretype (str): The type of data to be used for the first phase of training. f=full, l=low, h=high. Default is "f".
-    posttype (str): The type of data to be used for the second phase of training. Same as pretype. Default is "f".
-    sel (str): Selected phoneme types, full, c=consonants, v=vowels. Default is "full". *Now only using full*
-    preepochs (int): The number of epochs for the first phase of training. Default is 20.
-    postepochs (int): The number of epochs for the second phase of training. Default is 20.
+    Args: 
+        hyper_dir (str): the uppermost saving directory under model_save_, named as runner_name-timestamp-run_number. 
+        model_type (str): The type of model to be used. This includes "small", "medium", "large", "reslin", "lstm", etc. 
+        pretype (str): The type of data to be used for the first phase of training. f=full, l=low, h=high. Default is "f".
+        posttype (str): The type of data to be used for the second phase of training. Same as pretype. Default is "f".
+        sel (str): Selected phoneme types, full, c=consonants, v=vowels. Default is "full". *Now only using full*
+        preepochs (int): The number of epochs for the first phase of training. Default is 20.
+        postepochs (int): The number of epochs for the second phase of training. Default is 20.
     """
 
     model_save_dir = os.path.join(hyper_dir, f"{model_type}-{preepochs}-{postepochs}", sel, f"{pretype}{posttype}")
@@ -178,12 +179,10 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
     train_losses = ListRecorder(os.path.join(model_save_dir, "train.loss"))
     valid_losses = ListRecorder(os.path.join(model_save_dir, "valid.loss"))
     full_valid_losses = ListRecorder(os.path.join(model_save_dir, "full_valid.loss"))
-    trainlikevalid_losses = ListRecorder(os.path.join(model_save_dir, "trainlikevalid.loss"))
 
     train_accs = ListRecorder(os.path.join(model_save_dir, "train.acc"))
     valid_accs = ListRecorder(os.path.join(model_save_dir, "valid.acc"))
     full_valid_accs = ListRecorder(os.path.join(model_save_dir, "full_valid.acc"))
-    trainlikevalid_accs = ListRecorder(os.path.join(model_save_dir, "trainlikevalid.acc"))
 
     special_recs = DictRecorder(os.path.join(model_save_dir, "special.hst"))
 
@@ -213,15 +212,43 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
         f.write("\n")
         f.write(str(summary(model, input_size=(128, 1, 64, 21))))
 
+    # Trainer
+    trainer = ModelTrainer(model=model, 
+                           optimizer=optimizer, 
+                           criterion=criterion, 
+                           model_save_dir=model_save_dir, device=device)
+    # Dataset Loaders
+    # pool messanger
+    pool_messanger = PoolMessanger(configs["num_dataset"], configs["data_type_mapper"][pretype], configs["data_type_mapper"][posttype])
+
+    # NOTE: Subset Cache, this is to manage the reading of datasets. Should be transparent to user. 
+    train_cache = SubsetCache(max_cache_size=configs["max_cache_size"], dataset_class=ThisDataset)
+    valid_cache = SubsetCache(max_cache_size=configs["max_cache_size"], dataset_class=ThisDataset)
+
+    # Learning Path Planner
+    planner = LearningPathPlanner(dataset_ids=pool_messanger.get_pool(), 
+                                  total_epochs=configs["total_epochs"] + 1, # +1 because we have a pre-learning baseline. 
+                                  p1=configs["lpp_configs"]["p1"], 
+                                  decay_rate=configs["lpp_configs"]["decay_rate"])
+    
+    # generate the plan and save for reference
+    learning_plan = planner.generate_learning_path()
+    learning_plan_df = pd.DataFrame(learning_plan, columns=['dataset_id'])
+    learning_plan_df.to_csv(os.path.join(model_save_dir, "learning_plan.csv"), index=False)
+    """
+    Currently we are using the same number of training and validation datasets. 
+    TODO: In the future, if we want smaller number of validation datasets, we need to have two plans for training and validation independently. 
+    """
+
+    """Training"""
+
+
+
     # Load Data (I&II)
     train_loader_1 = load_data(type=pretype, sel="full", load="train")
     valid_loader_1 = load_data(type=pretype, sel=sel, load="valid") # target 
     train_loader_2 = load_data(type=posttype, sel="full", load="train")
     valid_loader_2 = load_data(type=posttype, sel=sel, load="valid")    # full = trainlike (because this time we don't separate c/v)
-    # trainlikevalid_loader_1 = load_data(type=pretype, sel="full", load="valid")
-    # trainlikevalid_loader_2 = load_data(type=posttype, sel="full", load="valid")
-    # In this way, we get training data will both consonants and vowels, but validation data with only either consonants or vowels. 
-    # But the sound range always follows the pretype and posttype settings. 
 
     # this is mainly to get the "improvement" for 
     # only-full training models, because they naturally
@@ -474,6 +501,24 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     RUN_TIMES = 1
+
+    configs = {
+        "num_dataset": 50,
+        "size_train": 1600, 
+        "size_valid": 320,
+        "data_type": "mel",
+        "total_epochs": 200, 
+        "data_type_mapper": {
+            "f": "full", 
+            "l": "low",
+            "h": "high"
+        }, 
+        "lpp_configs": {
+            "p1": 0.5, 
+            "decay_rate": 0.3
+        }, 
+        "max_cache_size": 5
+    }
     for run_time in range(RUN_TIMES):
         ## Hyper-preparations
         # ts = str(get_timestamp())
@@ -506,21 +551,20 @@ if __name__ == "__main__":
 
             # Construct and Save
             dg_cons_train.construct(
-                num_dataset=50, 
-                size_dataset=1600, 
+                num_dataset=configs["num_dataset"], 
+                size_dataset=configs["size_train"], 
                 absolute_size=True, 
-                data_type="mel", 
+                data_type=configs["data_type"], 
                 select_column=['stress_type','index']
             )
             dg_cons_valid.construct(
-                num_dataset=50,
-                size_dataset=320,
+                num_dataset=configs["num_dataset"],
+                size_dataset=configs["size_valid"],
                 absolute_size=True,
-                data_type="mel",
+                data_type=configs["data_type"],
                 select_column=['stress_type','index']
             )
         else: 
-            # TODO: not finished changing. 
             torch.cuda.set_device(args.gpu)
             run_once(model_save_dir, model_type=args.model, pretype=args.pretype, posttype="f", sel=args.select, 
-                        preepochs=args.preepochs, postepochs=(40 - args.preepochs))
+                        preepochs=args.preepochs, postepochs=(configs["total_epochs"] - args.preepochs), configs=configs)

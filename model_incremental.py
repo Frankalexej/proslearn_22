@@ -218,3 +218,44 @@ class LearningPathPlanner:
             next_dataset = self.get_next_dataset()
             learning_path.append(next_dataset)
         return learning_path
+
+
+class PoolMessanger: 
+    """
+    Holds the pool of datasets and gets the correct names to load the datasets. 
+    This is because LearningPathPlanner only operates on the dataset IDs. 
+    While loading datasets needs filenames of data and meta. 
+    """
+    META_SUFFIX = ".csv"
+    DATA_SUFFIX = ".npy"
+    def __init__(self, num_dataset, non_full_type="low", full_type="full"): 
+        """
+        Args:
+            num_dataset (int): The number of datasets in the pool.
+            non_full_type (str): type of non-full data. low, high, full. 
+            full_type (str): type of full data. low, high, full. 
+
+        Returns:
+            None
+        """
+        self.pool = list(range(num_dataset))
+        self.non_full_type = non_full_type
+        self.full_type = full_type
+        self.full_on = False # marking whether the dataset is filtered or full. 
+    
+    def get_pool(self): 
+        return self.pool
+    
+    def turn_on_full(self): 
+        self.full_on = True
+
+    def turn_off_full(self):
+        self.full_on = False
+    
+    def get_loading_params(self, dataset_id, train_status="train"): 
+        filter_type = self.non_full_type if not self.full_on else self.full_type
+
+        meta_path = f"{train_status}-{dataset_id}.{self.META_SUFFIX}"
+        data_path = f"{train_status}-{filter_type}-{dataset_id}.{self.DATA_SUFFIX}"
+
+        return dataset_id, meta_path, data_path
