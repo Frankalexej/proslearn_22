@@ -10,10 +10,8 @@ import random
 from scipy import signal
 from misc_tools import ARPABET
 import numpy as np
-# import librosa
 
 from misc_tools import AudioCut
-from PretermDataLoader import DataLoader as PretermDataLoader
 
 class DS_Tools:
     @ staticmethod
@@ -242,76 +240,6 @@ class SyllableDataset(Dataset):
 
         return data, self.mapper.encode(seg)
 
-class ConstructDatasetGroup: 
-    """
-    This is to construc a group of small datasets for incremental learning. 
-    It should achieve two things: 
-    1. use Ming's dataloader to sample and load the corresponding dataset. 
-    2. save the small datasets' meta files and the combined .npy files for later training use. 
-
-    NOTE: This function does not check the existence of meta files. Thus it should be checked in training code. 
-    """
-    def __init__(self, src_path, all_meta_filename, target_dir, target_name): 
-        """
-        Initializes the ConstructDatasetGroup object.
-
-        Args:
-            src_path (str): The path to the directory containing the raw dataset files.
-            all_meta_filename (str): The filename of metadata of the whole dataset. 
-            target_dir (str): The directory path where the small datasets and metadata will be saved.
-            target_name (str): The base name for the saved dataset and metadata files.
-
-        Returns:
-            None
-        """
-        raw_data_loader = PretermDataLoader(src_path)
-        all_meta = raw_data_loader.get_metadata(all_meta_filename)  # get metadata, NOTE: has to be called before other use. 
-        all_meta['index'] = all_meta.index
-        all_size = len(all_meta)    # size of the whole dataset.
-
-        self.all_meta = all_meta
-        self.all_size = all_size
-        self.raw_data_loader = raw_data_loader
-        self.target_dir = target_dir
-        self.target_name = target_name
-
-    def construct(self, num_dataset=10, size_dataset=1600, absolute_size=True, data_type="mel", select_column=["index"]): 
-        """
-        Constructs and saves a specified number of small datasets for incremental learning.
-
-        Args:
-            num_dataset (int): The number of small datasets to create.
-            size_dataset (int): The size of each small dataset, either as an absolute number of samples or as a percentage.
-            absolute_size (bool): If True, interprets size_dataset as the absolute number of samples; if False, interprets it as a percentage of the total dataset size.
-            data_type (str): The type of data to load (e.g., "mel").
-            select_column (list of str): List of columns to include in the metadata for each dataset.
-
-        Returns:
-            None
-        """
-        if not absolute_size: 
-            # percentage to absolute
-            size_sample = self.all_size * size_dataset
-        else: 
-            size_sample = size_dataset
-
-        selcol_all_meta = self.all_meta[select_column]  # select the columns
-
-        for i in range(num_dataset): 
-            data, indexes = self.raw_data_loader.load_data(data_type, size_sample)   # load the data (full)
-            print(f"Dataset {self.target_name}-{i}-full loaded.")
-            data_lowpass, _ = self.raw_data_loader.load_data(f"lowpass_{data_type}", size_sample, indexes)   # load the data (low)
-            print(f"Dataset {self.target_name}-{i}-low loaded.")
-            data_highpass, _ = self.raw_data_loader.load_data(f"highpass_{data_type}", size_sample, indexes)   # load the data (high)
-            print(f"Dataset {self.target_name}-{i}-high loaded.")
-            selcol_meta = selcol_all_meta.iloc[indexes]  # select the corresponding metadata
-            # save the metadata
-            selcol_meta.to_csv(os.path.join(self.target_dir, f"{self.target_name}-{i}.csv"), index=False)
-            # transform data (list of np array) into nparray
-            np.save(os.path.join(self.target_dir, f"{self.target_name}-full-{i}.npy"), np.array(data))
-            np.save(os.path.join(self.target_dir, f"{self.target_name}-low-{i}.npy"), np.array(data_lowpass))
-            np.save(os.path.join(self.target_dir, f"{self.target_name}-high-{i}.npy"), np.array(data_highpass))
-
 
 class SyllableDatasetNew(Dataset): 
     """
@@ -337,7 +265,7 @@ class SyllableDatasetNew(Dataset):
 
         meta_file["stress_type"] = meta_file["stress_type"].astype(str) # convert to string for token mapping. 
 
-        self.dataset = torch.from_numpy(data).clone()   # transform to tensor for PyTorch, clone to avoid in-place operation. 
+        self.dataset = torch.from_numpy(data)   # transform to tensor for PyTorch, don't have to clone, we will not modify the data. 
         self.dataset = self.dataset.permute(0, 2, 1)    # (datanum, feature_dim, length) -> (datanum, length, feature_dim)
         self.gt_set = meta_file["stress_type"].tolist() # ground truth set
         if mapper: 
@@ -358,6 +286,9 @@ class SyllableDatasetNew(Dataset):
 
         return data, mapped_seg
     
+
+
+
 
 class SingleRecSmallDatasetPrecombine(Dataset): 
     def __init__(self, src_dir, guide_, select=[], mapper=None, transform=None): 
