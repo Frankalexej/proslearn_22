@@ -325,7 +325,7 @@ if __name__ == "__main__":
         "size_train": 1600, 
         "size_valid": 320,
         "data_type": "mel",
-        "total_epochs": 500, 
+        "total_epochs": 700, 
         "lr": 1e-4,
         "data_type_mapper": {
             "f": "full", 
@@ -336,8 +336,8 @@ if __name__ == "__main__":
             "p1": 0.5, 
             "decay_rate": 0.3
         }, 
-        "max_cache_size_train": 5, 
-        "max_cache_size_valid": 10
+        "max_cache_size_train": 10, 
+        "max_cache_size_valid": 25
     }
     for run_time in range(RUN_TIMES):
         ## Hyper-preparations
