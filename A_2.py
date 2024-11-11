@@ -74,6 +74,7 @@ def draw_learning_curve_and_accuracy(losses, accs, epoch="", best_val=None, save
     display.display(plt.gcf())
     if save: 
         plt.savefig(save_name)
+    # plt.close()
 
 
 def run_once_continue(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full", preepochs=20, postepochs=20, configs={}): 
