@@ -26,6 +26,18 @@ class ListRecorder(Recorder):
         # only used by loss hists 
         with open(self.IOPath, 'rb') as f:
             self.record = pickle.load(f)
+
+    def read_adjust_length(self, last_epoch):
+        # only used by loss hists 
+        with open(self.IOPath, 'rb') as f:
+            self.record = pickle.load(f)
+        if len(self.record) < last_epoch + 1: 
+            raise ValueError(f"{self.IOPath} has length {len(self.record)} less than {last_epoch + 1}! ")
+        elif len(self.record) > last_epoch + 1: 
+            # Only when the record is longer than last_epoch + 1, we need to adjust the length
+            self.record = self.record[:last_epoch + 1]
+        else: 
+            return 
     
     def save(self): 
         with open(self.IOPath, 'wb') as file:
