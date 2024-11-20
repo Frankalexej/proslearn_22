@@ -13,7 +13,7 @@ generate_random_number() {
 # Arrays of options for each argument
 ps=('l' 'h')
 ms=('twoconvCNN')
-pres=(350 400 450 500)
+pres=(10 60 70 80 90)
 # pres=(1)
 ss=('full')
 
@@ -23,7 +23,7 @@ ts="1105012130"
 echo "Timestamp: $ts"
 # ts="0121181130"
 
-for (( i=4; i<=5; i++ )); do
+for (( i=2; i<=5; i++ )); do
     # Loop over each combination of arguments
     echo "$i"
     for p in "${ps[@]}"; do
