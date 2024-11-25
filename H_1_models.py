@@ -57,6 +57,57 @@ class TwoConvNetwork(nn.Module):
         preds = torch.argmax(output, dim=1)
         return preds
 
+# New Small Model Reconstruction
+class ConvAutoencoder(nn.Module):
+    def __init__(self):
+        super(ConvAutoencoder, self).__init__()
+        # Encoder
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),  # Downsample by 2x
+
+            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm2d(32),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),  # Downsample by another 2x
+        )
+        
+        # Decoder
+        self.decoder = nn.Sequential(
+            nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),  # Upsample by 2x
+            nn.BatchNorm2d(16),
+            nn.ReLU(),
+
+            nn.ConvTranspose2d(16, 1, kernel_size=2, stride=2),  # Upsample by 2x
+            nn.Sigmoid()  # Output values in range [0, 1]
+        )
+
+    def forward(self, x):
+        x = self.encoder(x)
+        x = self.decoder(x)
+        return x
+    
+class PredictionModel(nn.Module):
+    def __init__(self, latent_dim, num_classes):
+        super(PredictionModel, self).__init__()
+        self.fc = nn.Sequential(
+            nn.Linear(latent_dim, num_classes)
+        )
+
+        self.softmax = nn.Softmax(dim=1)
+    
+    def forward(self, x):
+        return self.fc(x)
+    
+    def predict_on_output(self, output): 
+        output = self.softmax(output)
+        preds = torch.argmax(output, dim=1)
+        return preds
+
+####################################################################################################
+
 # Small Model
 class SmallNetwork(nn.Module):
     def __init__(self):
