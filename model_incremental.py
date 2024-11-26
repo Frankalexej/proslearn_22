@@ -39,7 +39,7 @@ class ConstructDatasetGroup:
         """
         raw_data_loader = PretermDataLoader(src_path)
         all_meta = raw_data_loader.get_metadata(all_meta_filename)  # get metadata, NOTE: has to be called before other use. 
-        # all_meta['index'] = all_meta.index  # add index column for later use. USED? 
+        all_meta['index'] = all_meta.index  # add index column for later use. USED? 
         # filter the metadata before any data is noted down. 
         all_meta_filtered = ConstructDatasetGroup.filter_dataframe(all_meta, pre_select)
         raw_data_loader.update_metadata(all_meta_filtered)  # update the metadata in the dataloader.

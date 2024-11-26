@@ -616,14 +616,14 @@ if __name__ == "__main__":
                 all_meta_filename="meta_train.csv", # NOTE: using csv this time, but csv and pkl are the same content. 
                 target_dir=guides_dir, 
                 target_name="train", 
-                pre_select={"stress_type": ["1", "2", "3", "4"]}
+                pre_select={"stress_type": [1, 2, 3, 4]}
             )
             dg_cons_valid = ConstructDatasetGroup(
                 src_path=src_man_, 
                 all_meta_filename="meta_test.csv",   # NOTE: we are actually using the test set as validation set, but it is fine, just switch. 
                 target_dir=guides_dir,
                 target_name="valid", 
-                pre_select={"stress_type": ["1", "2", "3", "4"]}
+                pre_select={"stress_type": [1, 2, 3, 4]}
             )
 
             # Construct and Save
