@@ -41,11 +41,17 @@ class DataLoader():
         :return: meta data
         '''
         self.metapath = os.path.join(self.sourceFolder, metapath)
-        try:
-            with open(self.metapath,'rb') as f:
-                self.metadata = pickle.load(f)
-        except FileNotFoundError:
-            raise FileNotFoundError('meta file not found.')
+        if self.metapath.endswith('.pkl'): 
+            try:
+                with open(self.metapath,'rb') as f:
+                    self.metadata = pickle.load(f)
+            except FileNotFoundError:
+                raise FileNotFoundError('meta file not found.')
+        elif self.metapath.endswith('.csv'): 
+            try: 
+                self.metadata = pandas.read_csv(self.metapath)
+            except FileNotFoundError: 
+                raise FileNotFoundError('meta file not found.')
 
         return self.metadata
     def load_data(self,datatype:str,amount:int,indexes = None):
