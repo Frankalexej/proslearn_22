@@ -36,7 +36,7 @@ import argparse
 
 from H_1_models import SmallNetwork, MediumNetwork, LargeNetwork, ResLinearNetwork, LSTMNetwork, TwoConvNetwork
 from model_dataset import TokenMap
-from model_dataset import SyllableDatasetNew as ThisDataset
+from model_dataset import ToneDatasetNew as ThisDataset
 from model_incremental import *
 from model_trainer import ModelTrainer
 # from model_filter import XpassFilter
@@ -371,7 +371,7 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
     elif model_type == "lstm": 
         model = LSTMNetwork()
     elif model_type == "twoconvCNN": 
-        model = TwoConvNetwork()        
+        model = TwoConvNetwork()
     else:
         raise Exception("Model not defined! ")
     model.to(device)
@@ -392,7 +392,7 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
         f.write("\n")
         f.write(str(summary(model, input_size=(128, 1, 128, 126))))
     
-    mylist = ["0", "1", "2"]
+    mylist = ["1", "2", "3", "4"]
     mymap = TokenMap(mylist)
 
     # Trainer

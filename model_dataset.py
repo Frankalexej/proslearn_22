@@ -283,11 +283,12 @@ class SyllableDatasetNew(Dataset):
         mapped_seg = self.mapper.encode(seg)
 
         return data, mapped_seg
+
     
 
 class ToneDatasetNew(Dataset): 
     """
-    A custom PyTorch dataset for handling tone data with associated metadata.
+    A custom PyTorch dataset for handling tone data with associated metadata. We filter out the tone 5. 
 
     Args:
         meta_path (str): Path to the CSV file containing metadata for the dataset.
@@ -302,18 +303,27 @@ class ToneDatasetNew(Dataset):
         meta_file = pd.read_csv(meta_path)
         data = np.load(data_path)
 
-        meta_file["tone_type"] = meta_file["tone_type"].astype(str) # convert to string for token mapping. 
+        meta_file["stress_type"] = meta_file["stress_type"].astype(str) # convert to string for token mapping. 
+
+        # Filter metadata if a filter function is provided
+        original_indices = meta_file.index  # Save original indices
+        meta_file = meta_file[self.filter_stress_5(meta_file)]  # Apply filtering criteria
+        filtered_indices = meta_file.index  # Get the indices of the filtered rows
+        # Filter the NumPy array to match the metadata
+        data = data[filtered_indices]
+
+        print(f"Filtered {len(original_indices) - len(filtered_indices)} rows out of {len(original_indices)} from metadata. Now {len(meta_file)} rows remaining.")
 
         self.dataset = torch.from_numpy(data)   # transform to tensor for PyTorch, don't have to clone, we will not modify the data. 
         # self.dataset = self.dataset.permute(0, 2, 1)    # (datanum, feature_dim, length) -> (datanum, length, feature_dim)
         """We should keep this structure, because CNN takes in such a structure. """
         # In addition, add one more axis in after datanum. When loading with batch, the shape should be (B, 1, F, L)
         self.dataset = self.dataset.unsqueeze(1)
-        self.gt_set = meta_file["tone_type"].tolist() # ground truth set
+        self.gt_set = meta_file["stress_type"].tolist() # ground truth set
         if mapper: 
             self.mapper = mapper
         else: 
-            self.mapper = TokenMap(sorted(meta_file["tone_type"].unique().tolist())) # create a new TokenMap object using the unique values in the 'stress_type' column.
+            self.mapper = TokenMap(sorted(meta_file["stress_type"].unique().tolist())) # create a new TokenMap object using the unique values in the 'stress_type' column.
 
     def __len__(self): 
         return len(self.dataset)
@@ -327,6 +337,10 @@ class ToneDatasetNew(Dataset):
         mapped_seg = self.mapper.encode(seg)
 
         return data, mapped_seg
+    
+    def filter_stress_5(self, meta_file):
+        return meta_file["stress_type"].isin(["1", "2", "3", "4"])  # Keep only rows with specific stress types
+
 
 
 class SingleRecSmallDatasetPrecombine(Dataset): 
