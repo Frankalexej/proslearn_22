@@ -6,7 +6,7 @@ import torch.nn as nn
 ####################################################################################################
 # New Small Model
 class TwoConvNetwork(nn.Module):
-    def __init__(self):
+    def __init__(self, out_features=38):
         super(TwoConvNetwork, self).__init__()
         self.conv = nn.Sequential(
             nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1), 
@@ -30,7 +30,7 @@ class TwoConvNetwork(nn.Module):
             nn.BatchNorm1d(64),
             nn.ReLU(),
         )
-        self.lin = nn.Linear(in_features=64, out_features=38)
+        self.lin = nn.Linear(in_features=64, out_features=out_features)
 
         # Initialize weights
         self.apply(self.init_weights)

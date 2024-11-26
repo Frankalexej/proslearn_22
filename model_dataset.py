@@ -285,7 +285,48 @@ class SyllableDatasetNew(Dataset):
         return data, mapped_seg
     
 
+class ToneDatasetNew(Dataset): 
+    """
+    A custom PyTorch dataset for handling tone data with associated metadata.
 
+    Args:
+        meta_path (str): Path to the CSV file containing metadata for the dataset.
+        data_path (str): Path to the .npy file containing syllable data in numpy array format.
+        select (list, optional): List of columns to select for token mapping; defaults to an empty list.
+        mapper (TokenMap, optional): An optional TokenMap object for mapping tokens. If not provided, a new TokenMap is created using the 'select' list.
+
+    Returns:
+        None
+    """
+    def __init__(self, meta_path, data_path, mapper=None): 
+        meta_file = pd.read_csv(meta_path)
+        data = np.load(data_path)
+
+        meta_file["tone_type"] = meta_file["tone_type"].astype(str) # convert to string for token mapping. 
+
+        self.dataset = torch.from_numpy(data)   # transform to tensor for PyTorch, don't have to clone, we will not modify the data. 
+        # self.dataset = self.dataset.permute(0, 2, 1)    # (datanum, feature_dim, length) -> (datanum, length, feature_dim)
+        """We should keep this structure, because CNN takes in such a structure. """
+        # In addition, add one more axis in after datanum. When loading with batch, the shape should be (B, 1, F, L)
+        self.dataset = self.dataset.unsqueeze(1)
+        self.gt_set = meta_file["tone_type"].tolist() # ground truth set
+        if mapper: 
+            self.mapper = mapper
+        else: 
+            self.mapper = TokenMap(sorted(meta_file["tone_type"].unique().tolist())) # create a new TokenMap object using the unique values in the 'stress_type' column.
+
+    def __len__(self): 
+        return len(self.dataset)
+
+    def __getitem__(self, idx): 
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+        
+        data = self.dataset[idx]
+        seg = self.gt_set[idx]
+        mapped_seg = self.mapper.encode(seg)
+
+        return data, mapped_seg
 
 
 class SingleRecSmallDatasetPrecombine(Dataset): 
