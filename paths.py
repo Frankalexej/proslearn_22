@@ -3,6 +3,7 @@ import os
 root_ = "../"   # hyperpath of here
 root_hd_ = '/mnt/storage/compling/proslearn/'    # hyperpath of harddisk
 src_eng_ = root_hd_ + "/src/eng/"
+src_man_ = root_hd_ + "/src/man_tone/"
 
 debug_ = src_eng_ + "debug/"
 

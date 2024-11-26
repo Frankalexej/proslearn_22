@@ -24,7 +24,7 @@ class ConstructDatasetGroup:
 
     NOTE: This function does not check the existence of meta files. Thus it should be checked in training code. 
     """
-    def __init__(self, src_path, all_meta_filename, target_dir, target_name): 
+    def __init__(self, src_path, all_meta_filename, target_dir, target_name, pre_select={}): 
         """
         Initializes the ConstructDatasetGroup object.
 
@@ -39,10 +39,13 @@ class ConstructDatasetGroup:
         """
         raw_data_loader = PretermDataLoader(src_path)
         all_meta = raw_data_loader.get_metadata(all_meta_filename)  # get metadata, NOTE: has to be called before other use. 
-        all_meta['index'] = all_meta.index
-        all_size = len(all_meta)    # size of the whole dataset.
+        # all_meta['index'] = all_meta.index  # add index column for later use. USED? 
+        # filter the metadata before any data is noted down. 
+        all_meta_filtered = ConstructDatasetGroup.filter_dataframe(all_meta, pre_select)
+        raw_data_loader.update_metadata(all_meta_filtered)  # update the metadata in the dataloader.
+        all_size = len(all_meta_filtered)    # size of the whole dataset.
 
-        self.all_meta = all_meta
+        # self.all_meta = all_meta_filtered
         self.all_size = all_size
         self.raw_data_loader = raw_data_loader
         self.target_dir = target_dir
@@ -68,7 +71,8 @@ class ConstructDatasetGroup:
         else: 
             size_sample = size_dataset
 
-        selcol_all_meta = self.all_meta[select_column]  # select the columns
+        # selcol_all_meta = self.all_meta[select_column]  # select the columns
+        selcol_all_meta = self.raw_data_loader.metadata[select_column]  # select the columns, but always follow what is used when selecting mels. 
 
         for i in range(num_dataset): 
             data, indexes = self.raw_data_loader.load_data(data_type, size_sample)   # load the data (full)
@@ -84,6 +88,24 @@ class ConstructDatasetGroup:
             np.save(os.path.join(self.target_dir, f"{self.target_name}-full-{i}.npy"), np.array(data))
             np.save(os.path.join(self.target_dir, f"{self.target_name}-low-{i}.npy"), np.array(data_lowpass))
             np.save(os.path.join(self.target_dir, f"{self.target_name}-high-{i}.npy"), np.array(data_highpass))
+
+    @staticmethod
+    def filter_dataframe(df, config):
+        filtered_df = df.copy()
+        for column, condition in config.items():
+            if isinstance(condition, list):
+                # Filter by list of values
+                filtered_df = filtered_df[filtered_df[column].isin(condition)]
+            elif callable(condition):
+                # Filter using a callable
+                filtered_df = filtered_df[filtered_df[column].apply(condition)]
+            elif isinstance(condition, tuple) and len(condition) == 2:
+                # Filter by range (inclusive)
+                filtered_df = filtered_df[filtered_df[column].between(condition[0], condition[1])]
+            else:
+                # Filter by single value
+                filtered_df = filtered_df[filtered_df[column] == condition]
+        return filtered_df
 
 
 class SubsetCache: 

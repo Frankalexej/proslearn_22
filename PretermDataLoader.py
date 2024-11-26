@@ -54,6 +54,14 @@ class DataLoader():
                 raise FileNotFoundError('meta file not found.')
 
         return self.metadata
+    
+    def update_metadata(self,metadata:pandas.DataFrame):
+        '''
+        update metadata
+        :param metadata: new metadata
+        '''
+        self.metadata = metadata
+
     def load_data(self,datatype:str,amount:int,indexes = None):
         '''
         load certain amout of specific data
