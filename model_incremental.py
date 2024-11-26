@@ -79,15 +79,15 @@ class ConstructDatasetGroup:
             print(f"Dataset {self.target_name}-{i}-full loaded.")
             data_lowpass, _ = self.raw_data_loader.load_data(f"lowpass_{data_type}", size_sample, indexes)   # load the data (low)
             print(f"Dataset {self.target_name}-{i}-low loaded.")
-            data_highpass, _ = self.raw_data_loader.load_data(f"highpass_{data_type}", size_sample, indexes)   # load the data (high)
-            print(f"Dataset {self.target_name}-{i}-high loaded.")
+            # data_highpass, _ = self.raw_data_loader.load_data(f"highpass_{data_type}", size_sample, indexes)   # load the data (high)
+            # print(f"Dataset {self.target_name}-{i}-high loaded.")
             selcol_meta = selcol_all_meta.iloc[indexes]  # select the corresponding metadata
             # save the metadata
             selcol_meta.to_csv(os.path.join(self.target_dir, f"{self.target_name}-{i}.csv"), index=False)
             # transform data (list of np array) into nparray
             np.save(os.path.join(self.target_dir, f"{self.target_name}-full-{i}.npy"), np.array(data))
             np.save(os.path.join(self.target_dir, f"{self.target_name}-low-{i}.npy"), np.array(data_lowpass))
-            np.save(os.path.join(self.target_dir, f"{self.target_name}-high-{i}.npy"), np.array(data_highpass))
+            # np.save(os.path.join(self.target_dir, f"{self.target_name}-high-{i}.npy"), np.array(data_highpass))
 
     @staticmethod
     def filter_dataframe(df, config):
