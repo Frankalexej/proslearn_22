@@ -626,20 +626,31 @@ if __name__ == "__main__":
                 # pre_select={"stress_type": [1, 2, 3, 4]}
             )
 
-            # Construct and Save
-            dg_cons_train.construct(
+            # # Construct and Save
+            # dg_cons_train.construct(
+            #     num_dataset=configs["num_dataset"], 
+            #     size_dataset=configs["size_train"], 
+            #     absolute_size=True, 
+            #     data_type=configs["data_type"], 
+            #     select_column=['stress_type','index']
+            # )
+            # dg_cons_valid.construct(
+            #     num_dataset=configs["num_dataset"],
+            #     size_dataset=configs["size_valid"],
+            #     absolute_size=True,
+            #     data_type=configs["data_type"],
+            #     select_column=['stress_type','index']
+            # )
+            # Append Construct and Save
+            dg_cons_train.append_construct(
                 num_dataset=configs["num_dataset"], 
-                size_dataset=configs["size_train"], 
-                absolute_size=True, 
                 data_type=configs["data_type"], 
-                select_column=['stress_type','index']
+                append_pass="high"
             )
-            dg_cons_valid.construct(
+            dg_cons_valid.append_construct(
                 num_dataset=configs["num_dataset"],
-                size_dataset=configs["size_valid"],
-                absolute_size=True,
                 data_type=configs["data_type"],
-                select_column=['stress_type','index']
+                append_pass="high"
             )
         elif args.traincontinue: 
             raise Exception("Not implemented yet")

@@ -11,7 +11,7 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ps=('l')
+ps=('h')
 ms=('twoconvCNN')
 pres=(10 20 30 40 50 60 70 80 90 100 150)
 # pres=(1)

@@ -41,7 +41,8 @@ class ConstructDatasetGroup:
         all_meta = raw_data_loader.get_metadata(all_meta_filename)  # get metadata, NOTE: has to be called before other use. 
         all_meta['index'] = all_meta.index  # add index column for later use. USED? 
         # filter the metadata before any data is noted down. 
-        all_meta_filtered = ConstructDatasetGroup.filter_dataframe(all_meta, pre_select)
+        # all_meta_filtered = ConstructDatasetGroup.filter_dataframe(all_meta, pre_select)
+        all_meta_filtered = all_meta
         raw_data_loader.update_metadata(all_meta_filtered)  # update the metadata in the dataloader.
         all_size = len(all_meta_filtered)    # size of the whole dataset.
 
@@ -79,33 +80,24 @@ class ConstructDatasetGroup:
             print(f"Dataset {self.target_name}-{i}-full loaded.")
             data_lowpass, _ = self.raw_data_loader.load_data(f"lowpass_{data_type}", size_sample, indexes)   # load the data (low)
             print(f"Dataset {self.target_name}-{i}-low loaded.")
-            # data_highpass, _ = self.raw_data_loader.load_data(f"highpass_{data_type}", size_sample, indexes)   # load the data (high)
-            # print(f"Dataset {self.target_name}-{i}-high loaded.")
+            data_highpass, _ = self.raw_data_loader.load_data(f"highpass_{data_type}", size_sample, indexes)   # load the data (high)
+            print(f"Dataset {self.target_name}-{i}-high loaded.")
             selcol_meta = selcol_all_meta.iloc[indexes]  # select the corresponding metadata
             # save the metadata
             selcol_meta.to_csv(os.path.join(self.target_dir, f"{self.target_name}-{i}.csv"), index=False)
             # transform data (list of np array) into nparray
             np.save(os.path.join(self.target_dir, f"{self.target_name}-full-{i}.npy"), np.array(data))
             np.save(os.path.join(self.target_dir, f"{self.target_name}-low-{i}.npy"), np.array(data_lowpass))
-            # np.save(os.path.join(self.target_dir, f"{self.target_name}-high-{i}.npy"), np.array(data_highpass))
+            np.save(os.path.join(self.target_dir, f"{self.target_name}-high-{i}.npy"), np.array(data_highpass))
 
-    @staticmethod
-    def filter_dataframe(df, config):
-        filtered_df = df.copy()
-        for column, condition in config.items():
-            if isinstance(condition, list):
-                # Filter by list of values
-                filtered_df = filtered_df[filtered_df[column].isin(condition)]
-            elif callable(condition):
-                # Filter using a callable
-                filtered_df = filtered_df[filtered_df[column].apply(condition)]
-            elif isinstance(condition, tuple) and len(condition) == 2:
-                # Filter by range (inclusive)
-                filtered_df = filtered_df[filtered_df[column].between(condition[0], condition[1])]
-            else:
-                # Filter by single value
-                filtered_df = filtered_df[filtered_df[column] == condition]
-        return filtered_df
+    def append_construct(self, num_dataset=10, data_type="mel", append_pass="high"): 
+        for i in range(num_dataset): 
+            selected_meta = pd.read_csv(os.path.join(self.target_dir, f"{self.target_name}-{i}.csv"))
+            selected_indexes = selected_meta["index"].tolist()
+            data_append, _ = self.raw_data_loader.load_data(f"{append_pass}pass_{data_type}", len(selected_indexes), selected_indexes)
+            print(f"Dataset {self.target_name}-{i}-{append_pass} loaded.")
+            np.save(os.path.join(self.target_dir, f"{self.target_name}-{append_pass}-{i}.npy"), np.array(data_append))
+
 
 
 class SubsetCache: 
