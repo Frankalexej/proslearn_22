@@ -121,7 +121,7 @@ class SubsetCache:
         self.batch_size = TrainingConfigs.BATCH_SIZE
         self.loader_worker = TrainingConfigs.LOADER_WORKER
 
-    def get_subset(self, subset_id, subset_meta_path, subset_data_path, subset_mapper=None): 
+    def get_subset(self, subset_id, subset_meta_path, subset_data_path, subset_mapper=None, shuffle=True): 
         """
         Retrieves a dataset subset from the cache or loads it from disk if not in the cache.
 
@@ -143,7 +143,7 @@ class SubsetCache:
         
         # Load from disk if not in cache
         dataset = self.dataset_class(subset_meta_path, subset_data_path, subset_mapper)
-        dataloder = DataLoader(dataset, batch_size=self.batch_size, shuffle=True, num_workers=self.loader_worker)
+        dataloder = DataLoader(dataset, batch_size=self.batch_size, shuffle=shuffle, num_workers=self.loader_worker)
         
         # Add to cache
         if len(self.cache) >= self.max_cache_size:
