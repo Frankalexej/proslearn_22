@@ -123,7 +123,7 @@ def run_once_continue(hyper_dir, model_type="large", pretype="f", posttype="f", 
 
     # Initialize Model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    criterion = nn.CrossEntropyLoss(S)
+    criterion = nn.CrossEntropyLoss()
     if model_type == "small":
         model = SmallNetwork()
     elif model_type == "medium":
