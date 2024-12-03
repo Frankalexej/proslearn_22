@@ -237,6 +237,7 @@ if __name__ == "__main__":
         mk(model_read_dir)
         torch.cuda.set_device(args.gpu)
         for the_epoch in range(0, configs["total_epochs"]): 
+            print(f"Epoch {the_epoch} of {configs['total_epochs']}")
             # we loop over this
             run_once_eval(model_save_dir, model_read_dir, model_type=args.model, pretype=args.pretype, posttype="f", sel=args.select, 
                         preepochs=args.preepochs, postepochs=(configs["total_epochs"] - args.preepochs), the_epoch=the_epoch, configs=configs)
