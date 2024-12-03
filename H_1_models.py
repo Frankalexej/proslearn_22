@@ -63,24 +63,25 @@ class ConvAutoencoder(nn.Module):
         super(ConvAutoencoder, self).__init__()
         # Encoder
         self.encoder = nn.Sequential(
-            nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=1),  # Same dimensions
             nn.BatchNorm2d(16),
             nn.ReLU(),
             nn.MaxPool2d(kernel_size=2, stride=2),  # Downsample by 2x
 
-            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv2d(16, 32, kernel_size=3, stride=1, padding=1),  # Same dimensions
             nn.BatchNorm2d(32),
             nn.ReLU(),
-            nn.MaxPool2d(kernel_size=2, stride=2),  # Downsample by another 2x
+            nn.MaxPool2d(kernel_size=2, stride=2)  # Downsample by another 2x
         )
         
         # Decoder
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2),  # Upsample by 2x
+            nn.ConvTranspose2d(32, 16, kernel_size=2, stride=2, output_padding=(0, 1)),  # Upsample by 2x
+            # Add output_padding to recover exact size, without this it is 124, now 126
             nn.BatchNorm2d(16),
             nn.ReLU(),
 
-            nn.ConvTranspose2d(16, 1, kernel_size=2, stride=2),  # Upsample by 2x
+            nn.ConvTranspose2d(16, 1, kernel_size=2, stride=2),  # Add output_padding to recover exact size
             nn.Sigmoid()  # Output values in range [0, 1]
         )
 

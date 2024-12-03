@@ -11,9 +11,9 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ps=('l' 'h')
+ps=('l' 'h')    # 'h'
 ms=('convAE')
-pres=(10 20 30 40 50 60 70 80 90 100 150)
+pres=(10 20 30 40 50 60 70 80 90 100 150)  # 20 30 40 50 60 70 80 90 100 150
 # pres=(1)
 ss=('full')
 
