@@ -237,6 +237,33 @@ class LearningPathPlanner:
             next_dataset = self.get_next_dataset()
             learning_path.append(next_dataset)
         return learning_path
+    
+class LearningPathPickup: 
+    def __init__(self, learning_path, dataset_pool, on_same="random", on_end="random"): 
+        self.learning_path = learning_path
+        self.dataset_pool = dataset_pool
+        self.on_same = on_same
+        self.on_end = on_end
+
+    def get_this_and_next(self, current_learning_position): 
+        # This ensures this_id != next_id, which is the most important. 
+        this_id = self.learning_path[current_learning_position]
+        if current_learning_position == len(self.learning_path) - 1: 
+            if self.on_end == "random": 
+                return this_id, random.choice(set(self.dataset_pool)-set(this_id))    # pick a random dataset not the current one
+            else: 
+                raise ValueError("Invalid on_end value.") 
+        else: 
+            next_id = self.learning_path[current_learning_position + 1]
+            if next_id == this_id: 
+                # we have the same next dataset. 
+                if self.on_same == "random": 
+                    return this_id, random.choice(set(self.dataset_pool)-set(this_id))
+                else: 
+                    raise ValueError("Invalid on_same value.")
+            else: 
+                return this_id, next_id
+
 
 
 class PoolMessanger: 

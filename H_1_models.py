@@ -90,6 +90,27 @@ class ConvAutoencoder(nn.Module):
         x = self.decoder(x)
         return x
     
+    def encode(self, x):
+        return self.encoder(x)  # Only the encoder part
+    
+
+class LinearPredictor(nn.Module): 
+    def __init__(self, out_features=38):
+        super(LinearPredictor, self).__init__()
+        channel, frequency, length = 32, 32, 31
+        flattened_size = channel * frequency * length
+        self.fc = nn.Linear(flattened_size, out_features)
+
+    def forward(self, x): 
+        x = torch.flatten(x, start_dim=1)
+        x = self.fc(x)
+        return x
+
+    def predict_on_output(self, output): 
+        output = nn.Softmax(dim=1)(output)
+        preds = torch.argmax(output, dim=1)
+        return preds
+    
 class PredictionModel(nn.Module):
     def __init__(self, latent_dim, num_classes):
         super(PredictionModel, self).__init__()
