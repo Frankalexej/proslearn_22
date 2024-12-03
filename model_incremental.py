@@ -250,7 +250,7 @@ class LearningPathPickup:
         this_id = self.learning_path[current_learning_position]
         if current_learning_position == len(self.learning_path) - 1: 
             if self.on_end == "random": 
-                return this_id, random.choice(set(self.dataset_pool)-set(this_id))    # pick a random dataset not the current one
+                return this_id, random.choice(set(self.dataset_pool)-set([this_id]))    # pick a random dataset not the current one
             else: 
                 raise ValueError("Invalid on_end value.") 
         else: 
@@ -258,7 +258,7 @@ class LearningPathPickup:
             if next_id == this_id: 
                 # we have the same next dataset. 
                 if self.on_same == "random": 
-                    return this_id, random.choice(set(self.dataset_pool)-set(this_id))
+                    return this_id, random.choice(set(self.dataset_pool)-set([this_id]))
                 else: 
                     raise ValueError("Invalid on_same value.")
             else: 
