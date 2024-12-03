@@ -35,7 +35,7 @@ for (( i=1; i<=5; i++ )); do
                     post=$((200 - pre))
 
                     # Run the Python script with the current combination of arguments in the background
-                    python B_3_eval.py -ts "$ts-$i" -p "$p" -m "$m" -s "$s" -gpu "$gpu" -pree "$pre" -poste "$post" &
+                    python B_3.py -ts "$ts-$i" -p "$p" -m "$m" -s "$s" -gpu "$gpu" -pree "$pre" -poste "$post" &
                 done
             done
         done

@@ -286,9 +286,9 @@ class LinearClassifierPredictionTrainer:
             loss.backward()
             torch.nn.utils.clip_grad_norm_(parameters=self.model_eval.parameters(), max_norm=5, norm_type=2)
             self.optimizer.step()
-            # pred = self.model.predict_on_output(y_hat)
-            # train_total += y_hat.size(0)
-            # train_correct += (pred == y).sum().item()
+            pred = self.model_eval.predict_on_output(y_hat)
+            train_total += y_hat.size(0)
+            train_correct += (pred == gt_tag).sum().item()
         
         # self.scheduler.step()
         last_model_name = f"{epoch}.pt"

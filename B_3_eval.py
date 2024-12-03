@@ -139,7 +139,7 @@ def run_once_eval(hyper_dir_save, hyper_dir_read, model_type="large", pretype="f
     # generate the plan and save for reference
     # learning_plan = planner.generate_learning_path()
     # learning_plan_df = pd.DataFrame(learning_plan, columns=['dataset_id'])
-    learning_plan_df = pd.read_csv(os.path.join(guides_dir, "learning_plan.csv"))
+    learning_plan_df = pd.read_csv(os.path.join(model_read_dir, "learning_plan.csv"))
     learning_plan = learning_plan_df["dataset_id"].tolist()
     learning_plan_pickuper = LearningPathPickup(learning_path=learning_plan, 
                                                 dataset_pool=pool_messanger.get_pool(), 
@@ -210,7 +210,7 @@ if __name__ == "__main__":
         "size_valid": 320,
         "data_type": "mel",
         "total_epochs": 300, # for lower pre-training conditions we lower the final epoch to 300, because we found no much learning afterwards. 
-        "total_classifier_training_epochs": 20,
+        "total_classifier_training_epochs": 15,
         "lr": 1e-4,
         "data_type_mapper": {
             "f": "full", 
