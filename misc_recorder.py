@@ -43,6 +43,7 @@ class ListRecorder(Recorder):
         with open(self.IOPath, 'wb') as file:
             pickle.dump(self.record, file)
 
+
 class DictRecorder(Recorder):
     def __init__(self, IOPath): 
         self.record = {}

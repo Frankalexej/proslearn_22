@@ -1,5 +1,8 @@
 import os
 import torch
+import numpy as np
+from sklearn.cluster import KMeans
+from sklearn.metrics import v_measure_score, adjusted_rand_score, normalized_mutual_info_score
 
 class ModelTrainer:
     """
@@ -335,3 +338,85 @@ class LinearClassifierPredictionTrainer:
         avg_eval_loss = eval_loss / eval_num
         avg_eval_correct = eval_correct / eval_total   # eval_correct / eval_total, but we do not have this. 
         return avg_eval_loss, avg_eval_correct
+    
+
+class ClusteringTrainer: 
+    """
+    A class to manage the training and evaluation of a PyTorch model.
+    Each call is just one epoch. Epoch management is done in the training loop. 
+
+    DataCollectionTrainer is for collecting hidden representations and conducting clustering. 
+    """
+
+    def __init__(self, model_trained, criterion, optimizer, model_save_dir, n_clusters=2, device='cuda'):
+        """
+        Initializes the ModelTrainer.
+
+        Args:
+            model (nn.Module): PyTorch model to train.
+            optimizer (torch.optim.Optimizer): Optimizer to use for training.
+            criterion (torch.nn.Module): Loss function to use for training.
+            model_save_dir (str): Directory to save the trained model.
+            device (str): Device to use for training. Default is 'cuda'.
+        """
+        self.model_trained = model_trained
+        self.criterion = criterion
+        self.optimizer = optimizer
+        """
+        At the moment we don't use scheduler, because we have multiple small datasets and 
+        we want to keep track of the learning curve; if the scheduler is used, the learning
+        rate will be updated automatically, and we may not be able to see the effect of learning. 
+        But rather the effect of the scheduler should be more obvious. 
+        """
+        # self.scheduler = scheduler
+        self.device = device
+        self.model_save_dir = model_save_dir
+
+        self.n_clusters = n_clusters
+
+    def train(self, data_loader, epoch):
+        raise NotImplementedError("ClusteringTrainer does not have training function.")
+
+    def evaluate(self, dataloader):
+        """
+        Evaluates the model on a given DataLoader.
+
+        Args:
+            dataloader (DataLoader): DataLoader for the dataset to evaluate.
+
+        Returns:
+            tuple: Average loss and accuracy for the evaluation dataset.
+        """
+        # in fact, depending on the dataloader given, it can be train, valid, etc. 
+        # but this is just for evaluation, not training. 
+        self.model_trained.eval()
+        all_hidrep = []            # Store all hidden representations
+        all_gt_tags = []           # Store all ground-truth tags for evaluation
+
+        eval_loss = 0.
+        eval_num = len(dataloader)    # val_loader
+        eval_correct = 0
+        eval_total = 0
+
+        with torch.no_grad():
+            for idx, (x, y, gt_tag) in enumerate(dataloader):
+                x = x.to(self.device, dtype=torch.float32)
+                gt_tag = gt_tag.cpu().numpy()  # Ground-truth tags
+
+                hidrep = self.model_trained.encode(x).cpu().numpy()   # get hidden representation
+                all_hidrep.append(hidrep)
+                all_gt_tags.append(gt_tag)
+
+        # Combine all hidden representations and ground-truth tags
+        all_hidrep = np.concatenate(all_hidrep, axis=0)
+        all_gt_tags = np.concatenate(all_gt_tags, axis=0)
+
+        # Apply KMeans clustering
+        kmeans = KMeans(n_clusters=self.n_clusters, random_state=42)
+        predicted_labels = kmeans.fit_predict(all_hidrep)
+
+        # Calculate clustering metrics
+        v_measure = v_measure_score(all_gt_tags, predicted_labels)
+        ari = adjusted_rand_score(all_gt_tags, predicted_labels)
+        nmi = normalized_mutual_info_score(all_gt_tags, predicted_labels)
+        return v_measure, ari, nmi
