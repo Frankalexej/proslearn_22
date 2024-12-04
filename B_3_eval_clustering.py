@@ -44,6 +44,7 @@ def draw_learning_curve_and_accuracy(datas, data_names, epoch="", save=False, sa
         ax.plot(valid_data, label='Valid')
         ax.plot(full_valid_data, label='Full Valid')
         ax.set_title("Learning Curve" + f"{data_names[i]} {epoch}")
+        ax.legend()
 
     # Display the plots
     plt.tight_layout()
