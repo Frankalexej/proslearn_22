@@ -398,12 +398,15 @@ class ClusteringTrainer:
         eval_correct = 0
         eval_total = 0
 
+        pooling = torch.nn.AdaptiveAvgPool2d((1, 1))
+
         with torch.no_grad():
             for idx, (x, y, gt_tag) in enumerate(dataloader):
                 x = x.to(self.device, dtype=torch.float32)
                 gt_tag = gt_tag.cpu().numpy()  # Ground-truth tags
 
-                hidrep = self.model_trained.encode(x).cpu().numpy()   # get hidden representation
+                hidrep_nonpool = self.model_trained.encode(x)   # get hidden representation
+                hidrep = pooling(hidrep_nonpool).squeeze().cpu().numpy()  # may not be very valid operation
                 all_hidrep.append(hidrep)
                 all_gt_tags.append(gt_tag)
 

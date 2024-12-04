@@ -23,7 +23,7 @@ ts="1126125730"
 echo "Timestamp: $ts"
 # ts="0121181130"
 
-for (( i=1; i<=5; i++ )); do
+for (( i=2; i<=5; i++ )); do
     # Loop over each combination of arguments
     echo "$i"
     for p in "${ps[@]}"; do

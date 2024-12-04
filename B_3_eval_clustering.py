@@ -98,7 +98,7 @@ def run_once_eval(hyper_dir_save, hyper_dir_read, model_type="large", pretype="f
     full_valid_cache = SubsetCache(max_cache_size=configs["max_cache_size_valid"], dataset_class=ThisDataset)
 
     # Learning Path Planner
-    learning_plan_df = pd.read_csv(os.path.join(guides_dir, "learning_plan.csv"))
+    learning_plan_df = pd.read_csv(os.path.join(model_read_dir, "learning_plan.csv"))
     learning_plan = learning_plan_df["dataset_id"].tolist()
 
     # Baseline & Train (I)
@@ -109,7 +109,7 @@ def run_once_eval(hyper_dir_save, hyper_dir_read, model_type="large", pretype="f
         if epoch > 0: 
             model_name = "{}.pt".format(epoch)  # read from training savings the model to produce hidrep. 
             model_path = os.path.join(model_read_dir, model_name)   # NOTE: not the model_save_dir. 
-            state = torch.load(model_path)
+            state = torch.load(model_path, weights_only=True)
             model_trained.load_state_dict(state)
         # else we use the default initialization to mimic before-training baseline. 
         # Place model to device
@@ -168,7 +168,7 @@ def run_once_eval(hyper_dir_save, hyper_dir_read, model_type="large", pretype="f
         if epoch > 0: 
             model_name = "{}.pt".format(epoch)  # read from training savings the model to produce hidrep. 
             model_path = os.path.join(model_read_dir, model_name)   # NOTE: not the model_save_dir. 
-            state = torch.load(model_path)
+            state = torch.load(model_path, weights_only=True)
             model_trained.load_state_dict(state)
         # else we use the default initialization to mimic before-training baseline. 
         # Place model to device
