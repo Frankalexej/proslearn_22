@@ -106,8 +106,8 @@ def run_once_eval(hyper_dir_save, hyper_dir_read, model_type="large", pretype="f
     for epoch in range(0, base_epoch + preepochs):  # NOTE: we have 0 epoch for baseline. 
         print(f"Epoch {epoch}")
         # Load model
-        if the_epoch > 0: 
-            model_name = "{}.pt".format(the_epoch)  # read from training savings the model to produce hidrep. 
+        if epoch > 0: 
+            model_name = "{}.pt".format(epoch)  # read from training savings the model to produce hidrep. 
             model_path = os.path.join(model_read_dir, model_name)   # NOTE: not the model_save_dir. 
             state = torch.load(model_path)
             model_trained.load_state_dict(state)
@@ -165,8 +165,8 @@ def run_once_eval(hyper_dir_save, hyper_dir_read, model_type="large", pretype="f
     for epoch in range(base_epoch_II, base_epoch_II + postepochs):
         print(f"Epoch {epoch}")
         # Load model
-        if the_epoch > 0: 
-            model_name = "{}.pt".format(the_epoch)  # read from training savings the model to produce hidrep. 
+        if epoch > 0: 
+            model_name = "{}.pt".format(epoch)  # read from training savings the model to produce hidrep. 
             model_path = os.path.join(model_read_dir, model_name)   # NOTE: not the model_save_dir. 
             state = torch.load(model_path)
             model_trained.load_state_dict(state)
