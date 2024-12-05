@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from torch.nn import init
 import argparse
 
-from H_1_models import ConvAutoencoder, LinearPredictor
+from H_1_models import ConvAutoencoderV2, LinearPredictor
 from model_dataset import TokenMap
 from model_dataset import ToneDatasetReconstruction as ThisDataset
 from model_incremental import *

@@ -155,18 +155,18 @@ class ConvAutoencoderV2(nn.Module):
     
     def encode(self, x): 
         x, _ = self.encoder(x)
-        return x  # Only the encoder part
+        return torch.flatten(x, start_dim=1)  # Only the encoder part, and we flatten the output
     
 
 class LinearPredictor(nn.Module): 
     def __init__(self, out_features=38):
         super(LinearPredictor, self).__init__()
-        channel, frequency, length = 32, 32, 31
+        channel, frequency, length = 256, 1, 1  # dimension of the output of the encoder (hidden representation)
         flattened_size = channel * frequency * length
         self.fc = nn.Linear(flattened_size, out_features)
 
     def forward(self, x): 
-        x = torch.flatten(x, start_dim=1)
+        # x = torch.flatten(x, start_dim=1)
         x = self.fc(x)
         return x
 
