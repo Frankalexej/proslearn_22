@@ -92,17 +92,81 @@ class ConvAutoencoder(nn.Module):
     
     def encode(self, x):
         return self.encoder(x)  # Only the encoder part
+
+class ConvEncoderV1(nn.Module):
+    def __init__(self):
+        super(ConvEncoderV1, self).__init__()
+        # NOTE: only works for (batch, 1, 128, 126)
+        self.convs = nn.ModuleList([
+            nn.Conv2d(1, 16, kernel_size=3, stride=1, padding=(1, 2)), 
+            nn.Conv2d(16, 64, kernel_size=5, stride=1, padding=2), 
+            nn.Conv2d(64, 256, kernel_size=7, stride=1, padding=3)
+        ])
+        self.bns = nn.ModuleList([nn.BatchNorm2d(16), nn.BatchNorm2d(64), nn.BatchNorm2d(256)])
+        self.act = nn.ReLU()
+        self.pool = nn.MaxPool2d(kernel_size=4, stride=4, return_indices=True)
+        self.avgpool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
+    def forward(self, x):
+        wheres = []
+        for leap in range(3):
+            x = self.act(self.bns[leap](self.convs[leap](x)))
+            x, where = self.pool(x)
+            wheres.append(where)
+        x = self.avgpool(x)
+        return x, wheres
+    
+class ConvDecoderV1(nn.Module):
+    def __init__(self):
+        super(ConvDecoderV1, self).__init__()
+        self.last_pool = nn.ConvTranspose2d(256,256, kernel_size=2, stride=2) # 1, 1 -> 3, 3
+        self.convs = nn.ModuleList([
+            nn.ConvTranspose2d(256, 64, kernel_size=7, stride=1, padding=3),
+            nn.ConvTranspose2d(64, 16, kernel_size=5, stride=1, padding=2),
+            nn.ConvTranspose2d(16, 1, kernel_size=3, stride=1, padding=(1, 2))
+        ])
+        self.bns = nn.ModuleList([nn.BatchNorm2d(64), nn.BatchNorm2d(16)])
+        self.act = nn.ReLU()
+        self.pool = nn.MaxUnpool2d(kernel_size=4, stride=4)
+        self.sigmoid = nn.Sigmoid()
+    def forward(self, x, wheres):
+        wheres = wheres[::-1]
+        x = self.last_pool(x)
+        for leap in [0, 1]: 
+            x = self.pool(x, wheres[leap])
+            x = self.act(self.bns[leap](self.convs[leap](x)))
+        x = self.pool(x, wheres[2])
+        x = self.convs[2](x)
+        x = self.sigmoid(x)
+        return x
+
+class ConvAutoencoderV2(nn.Module):
+    def __init__(self):
+        super(ConvAutoencoderV2, self).__init__()
+        # Encoder
+        self.encoder = ConvEncoderV1()
+        
+        # Decoder
+        self.decoder = ConvDecoderV1()
+
+    def forward(self, x):
+        x, wheres = self.encoder(x)
+        x = self.decoder(x, wheres)
+        return x
+    
+    def encode(self, x): 
+        x, _ = self.encoder(x)
+        return torch.flatten(x, start_dim=1)  # Only the encoder part, and we flatten the output
     
 
 class LinearPredictor(nn.Module): 
     def __init__(self, out_features=38):
         super(LinearPredictor, self).__init__()
-        channel, frequency, length = 32, 32, 31
+        channel, frequency, length = 256, 1, 1  # dimension of the output of the encoder (hidden representation)
         flattened_size = channel * frequency * length
         self.fc = nn.Linear(flattened_size, out_features)
 
     def forward(self, x): 
-        x = torch.flatten(x, start_dim=1)
+        # x = torch.flatten(x, start_dim=1)
         x = self.fc(x)
         return x
 

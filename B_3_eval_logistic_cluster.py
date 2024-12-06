@@ -2,6 +2,8 @@
 B3: 
 This time using recontruction as training goal (ConvAutoencoder), other things minimally changed compared to A3. 
 This is Tone Learning. 
+
+This has both logistic linear regression training and clustering training. 
 """
 
 # All in Runner
@@ -20,7 +22,7 @@ import torch.nn.functional as F
 from torch.nn import init
 import argparse
 
-from H_1_models import ConvAutoencoder, LinearPredictor
+from H_1_models import ConvAutoencoderV2, LinearPredictor
 from model_dataset import TokenMap
 from model_dataset import ToneDatasetReconstruction as ThisDataset
 from model_incremental import *
@@ -31,11 +33,20 @@ from misc_recorder import *
 # from H_2_drawer import draw_learning_curve_and_accuracy
 
 
-def draw_learning_curve_and_accuracy(datas, data_names, epoch="", save=False, save_name=""): 
+def draw_learning_curve_and_accuracy(datas, data_names, epoch="", save=False, save_name="", max_cols=3, plot_width=6, plot_height=4): 
     plt.clf()
     assert len(datas) == len(data_names), "Data and Data Names should have the same length. "
     num_data = len(datas)
-    fig, axs = plt.subplots(1, num_data, figsize=(6*num_data, 4))
+    num_rows = math.ceil(num_data / max_cols)
+    num_cols = min(num_data, max_cols)
+    # Create the figure
+    fig, axs = plt.subplots(num_rows, num_cols, figsize=(plot_width * num_cols, plot_height * num_rows))
+
+    # Flatten axs if necessary for easy iteration
+    if num_rows == 1 or num_cols == 1:
+        axs = axs.flatten() if isinstance(axs, (list, np.ndarray)) else [axs]
+    else:
+        axs = axs.flatten()
 
     for i, data in enumerate(datas): 
         valid_data, full_valid_data = data
@@ -72,14 +83,19 @@ def run_once_eval(hyper_dir_save, hyper_dir_read, model_type="large", pretype="f
     valid_vmeasures = ListRecorder(os.path.join(model_save_dir, "valid.vmeasure"))
     full_valid_vmeasures = ListRecorder(os.path.join(model_save_dir, "full_valid.vmeasure"))
     valid_aris = ListRecorder(os.path.join(model_save_dir, "valid.ari"))
+    valid_accs = ListRecorder(os.path.join(model_save_dir, "valid.acc"))
+    valid_reports = HistRecorder(os.path.join(model_save_dir, "valid.report"))
+
     full_valid_aris = ListRecorder(os.path.join(model_save_dir, "full_valid.ari"))
     valid_nmis = ListRecorder(os.path.join(model_save_dir, "valid.nmi"))
     full_valid_nmis = ListRecorder(os.path.join(model_save_dir, "full_valid.nmi"))
+    full_valid_accs = ListRecorder(os.path.join(model_save_dir, "full_valid.acc"))
+    full_valid_reports = HistRecorder(os.path.join(model_save_dir, "full_valid.report"))
 
     # Initialize Model
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     if model_type == "convAE": 
-        model_trained = ConvAutoencoder() # used to generate hidrep
+        model_trained = ConvAutoencoderV2() # used to generate hidrep
         # model_eval = LinearPredictor() 
         # NOTE: this is just for evaluation, but it will have some training, which is not noted down, we only set a fix number of training epochs. 
     else:
@@ -128,20 +144,24 @@ def run_once_eval(hyper_dir_save, hyper_dir_read, model_type="large", pretype="f
         dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
                                                                             eval_type="valid")
         valid_loader = valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
-        valid_vmeasure, valid_ari, valid_nmi = trainer.evaluate(valid_loader)
-        valid_vmeasures.append(valid_vmeasure)
-        valid_aris.append(valid_ari)
-        valid_nmis.append(valid_nmi)
+        valid_cluster_res, valid_classification_res = trainer.evaluate(valid_loader)
+        valid_vmeasures.append(valid_cluster_res["v_measure"])
+        valid_aris.append(valid_cluster_res["ari"])
+        valid_nmis.append(valid_cluster_res["nmi"])
+        valid_accs.append(valid_classification_res["acc"])
+        valid_reports.append(valid_classification_res["report"])
 
         # Full Validation Data
         dataset_id = learning_plan[epoch]
         dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
                                                                             eval_type="full_valid")
         full_valid_loader = full_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
-        full_valid_vmeasure, full_valid_ari, full_valid_nmi = trainer.evaluate(full_valid_loader)
-        full_valid_vmeasures.append(full_valid_vmeasure)
-        full_valid_aris.append(full_valid_ari)
-        full_valid_nmis.append(full_valid_nmi)
+        full_valid_cluster_res, full_valid_classification_res = trainer.evaluate(full_valid_loader)
+        full_valid_vmeasures.append(full_valid_cluster_res["v_measure"])
+        full_valid_aris.append(full_valid_cluster_res["ari"])
+        full_valid_nmis.append(full_valid_cluster_res["nmi"])
+        full_valid_accs.append(full_valid_classification_res["acc"])
+        full_valid_reports.append(full_valid_classification_res["report"])
 
 
         if epoch % 10 == 0: 
@@ -149,16 +169,22 @@ def run_once_eval(hyper_dir_save, hyper_dir_read, model_type="large", pretype="f
             valid_vmeasures.save()
             valid_aris.save()
             valid_nmis.save()
+            valid_accs.save()
+            valid_reports.save()
             full_valid_vmeasures.save()
             full_valid_aris.save()
             full_valid_nmis.save()
+            full_valid_accs.save()
+            full_valid_reports.save()
             draw_learning_curve_and_accuracy(datas=[(valid_vmeasures.get(), full_valid_vmeasures.get()),
                                                     (valid_aris.get(), full_valid_aris.get()),
-                                                    (valid_nmis.get(), full_valid_nmis.get())], 
-                                            data_names=["VMeasure", "ARI", "NMI"], 
+                                                    (valid_nmis.get(), full_valid_nmis.get()), 
+                                                    (valid_accs.get(), full_valid_accs.get())], 
+                                            data_names=["CLUSTER_VMeasure", "CLUSTER_ARI", "CLUSTER_NMI", "CLASS_ACC"], 
                                             epoch=str(epoch), 
                                             save=True, 
-                                            save_name=f"{model_save_dir}/vis.png")
+                                            save_name=f"{model_save_dir}/vis.png", 
+                                            max_cols=2)
 
     # Train (II)
     base_epoch_II = base_epoch + preepochs
@@ -187,19 +213,24 @@ def run_once_eval(hyper_dir_save, hyper_dir_read, model_type="large", pretype="f
         dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
                                                                             eval_type="valid")
         valid_loader = valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
-        valid_vmeasure, valid_ari, valid_nmi = trainer.evaluate(valid_loader)
-        valid_vmeasures.append(valid_vmeasure)
-        valid_aris.append(valid_ari)
-        valid_nmis.append(valid_nmi)
+        valid_cluster_res, valid_classification_res = trainer.evaluate(valid_loader)
+        valid_vmeasures.append(valid_cluster_res["v_measure"])
+        valid_aris.append(valid_cluster_res["ari"])
+        valid_nmis.append(valid_cluster_res["nmi"])
+        valid_accs.append(valid_classification_res["acc"])
+        valid_reports.append(valid_classification_res["report"])
 
         # Full Validation Data
-        full_valid_vmeasure = valid_vmeasure
-        full_valid_ari = valid_ari
-        full_valid_nmi = valid_nmi
-
-        full_valid_vmeasures.append(full_valid_vmeasure)
-        full_valid_aris.append(full_valid_ari)
-        full_valid_nmis.append(full_valid_nmi)
+        dataset_id = learning_plan[epoch]
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
+                                                                            eval_type="full_valid")
+        full_valid_loader = full_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        full_valid_cluster_res, full_valid_classification_res = trainer.evaluate(full_valid_loader)
+        full_valid_vmeasures.append(full_valid_cluster_res["v_measure"])
+        full_valid_aris.append(full_valid_cluster_res["ari"])
+        full_valid_nmis.append(full_valid_cluster_res["nmi"])
+        full_valid_accs.append(full_valid_classification_res["acc"])
+        full_valid_reports.append(full_valid_classification_res["report"])
 
 
         if epoch % 10 == 0: 
@@ -207,24 +238,32 @@ def run_once_eval(hyper_dir_save, hyper_dir_read, model_type="large", pretype="f
             valid_vmeasures.save()
             valid_aris.save()
             valid_nmis.save()
+            valid_accs.save()
+            valid_reports.save()
             full_valid_vmeasures.save()
             full_valid_aris.save()
             full_valid_nmis.save()
+            full_valid_accs.save()
+            full_valid_reports.save()
             draw_learning_curve_and_accuracy(datas=[(valid_vmeasures.get(), full_valid_vmeasures.get()),
                                                     (valid_aris.get(), full_valid_aris.get()),
-                                                    (valid_nmis.get(), full_valid_nmis.get())], 
-                                            data_names=["VMeasure", "ARI", "NMI"], 
+                                                    (valid_nmis.get(), full_valid_nmis.get()), 
+                                                    (valid_accs.get(), full_valid_accs.get())], 
+                                            data_names=["CLUSTER_VMeasure", "CLUSTER_ARI", "CLUSTER_NMI", "CLASS_ACC"], 
                                             epoch=str(epoch), 
                                             save=True, 
-                                            save_name=f"{model_save_dir}/vis.png")
+                                            save_name=f"{model_save_dir}/vis.png", 
+                                            max_cols=2)
 
     draw_learning_curve_and_accuracy(datas=[(valid_vmeasures.get(), full_valid_vmeasures.get()),
                                             (valid_aris.get(), full_valid_aris.get()),
-                                            (valid_nmis.get(), full_valid_nmis.get())], 
-                                    data_names=["VMeasure", "ARI", "NMI"], 
+                                            (valid_nmis.get(), full_valid_nmis.get()), 
+                                            (valid_accs.get(), full_valid_accs.get())], 
+                                    data_names=["CLUSTER_VMeasure", "CLUSTER_ARI", "CLUSTER_NMI", "CLASS_ACC"], 
                                     epoch=str(base_epoch_II + postepochs), 
                                     save=True, 
-                                    save_name=f"{model_save_dir}/vis.png")
+                                    save_name=f"{model_save_dir}/vis.png", 
+                                    max_cols=2)
 
 
 if __name__ == "__main__": 
@@ -268,7 +307,7 @@ if __name__ == "__main__":
         # ts = str(get_timestamp())
         ts = args.timestamp
         train_name = "B3"
-        model_save_dir = os.path.join(model_save_, f"{train_name}-cluster-{ts}")
+        model_save_dir = os.path.join(model_save_, f"{train_name}-logistic-cluster-{ts}")
         model_read_dir = os.path.join(model_save_, f"{train_name}-{ts}")
         print(f"{train_name}-{ts}")
         mk(model_save_dir)

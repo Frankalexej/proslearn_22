@@ -23,7 +23,7 @@ ts="1126125730"
 echo "Timestamp: $ts"
 # ts="0121181130"
 
-for (( i=2; i<=5; i++ )); do
+for (( i=1; i<=5; i++ )); do
     # Loop over each combination of arguments
     echo "$i"
     for p in "${ps[@]}"; do
@@ -35,7 +35,7 @@ for (( i=2; i<=5; i++ )); do
                     post=$((200 - pre))
 
                     # Run the Python script with the current combination of arguments in the background
-                    python B_3_eval_clustering.py -ts "$ts-$i" -p "$p" -m "$m" -s "$s" -gpu "$gpu" -pree "$pre" -poste "$post" &
+                    python B_3_eval_logistic_cluster.py -ts "$ts-$i" -p "$p" -m "$m" -s "$s" -gpu "$gpu" -pree "$pre" -poste "$post" &
                 done
             done
         done

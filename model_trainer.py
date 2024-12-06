@@ -3,6 +3,10 @@ import torch
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.metrics import v_measure_score, adjusted_rand_score, normalized_mutual_info_score
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import classification_report, accuracy_score
 
 class ModelTrainer:
     """
@@ -386,6 +390,8 @@ class ClusteringTrainer:
 
         Returns:
             tuple: Average loss and accuracy for the evaluation dataset.
+
+        NOTE: this includes KMeans and LogisticRegression for evaluation. 
         """
         # in fact, depending on the dataloader given, it can be train, valid, etc. 
         # but this is just for evaluation, not training. 
@@ -393,17 +399,12 @@ class ClusteringTrainer:
         all_hidrep = []            # Store all hidden representations
         all_gt_tags = []           # Store all ground-truth tags for evaluation
 
-        eval_loss = 0.
-        eval_num = len(dataloader)    # val_loader
-        eval_correct = 0
-        eval_total = 0
-
         with torch.no_grad():
             for idx, (x, y, gt_tag) in enumerate(dataloader):
                 x = x.to(self.device, dtype=torch.float32)
                 gt_tag = gt_tag.cpu().numpy()  # Ground-truth tags
 
-                hidrep = self.model_trained.encode(x).cpu().numpy()   # get hidden representation
+                hidrep = self.model_trained.encode(x).squeeze().cpu().numpy()   # get hidden representation
                 all_hidrep.append(hidrep)
                 all_gt_tags.append(gt_tag)
 
@@ -419,4 +420,28 @@ class ClusteringTrainer:
         v_measure = v_measure_score(all_gt_tags, predicted_labels)
         ari = adjusted_rand_score(all_gt_tags, predicted_labels)
         nmi = normalized_mutual_info_score(all_gt_tags, predicted_labels)
-        return v_measure, ari, nmi
+
+
+        # Apply Logistic Regression for evaluation
+        # Assume hidrep is of shape (number, 256), and y contains labels (0, 1, 2, 3).
+        # Split data into training and testing sets.
+        X_train, X_test, y_train, y_test = train_test_split(all_hidrep, all_gt_tags, test_size=0.3, random_state=42)
+
+        # Scale the features using StandardScaler.
+        scaler = StandardScaler()
+        X_train = scaler.fit_transform(X_train)
+        X_test = scaler.transform(X_test)
+
+        # Initialize Logistic Regression with appropriate parameters.
+        clf = LogisticRegression(max_iter=1000, random_state=42, solver='lbfgs')
+
+        # Train the classifier.
+        clf.fit(X_train, y_train)
+
+        # Make predictions.
+        y_pred = clf.predict(X_test)
+
+        # Evaluate the model.
+        acc = accuracy_score(y_test, y_pred)
+
+        return {"v_measure": v_measure, "ari": ari, "nmi": nmi}, {"acc": acc, "report": classification_report(y_test, y_pred)}

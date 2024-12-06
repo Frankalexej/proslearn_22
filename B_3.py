@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from torch.nn import init
 import argparse
 
-from H_1_models import ConvAutoencoder
+from H_1_models import ConvAutoencoderV2
 from model_dataset import TokenMap
 from model_dataset import ToneDatasetReconstruction as ThisDataset
 from model_incremental import *
@@ -111,7 +111,7 @@ def run_once_continue(hyper_dir, model_type="large", pretype="f", posttype="f", 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     criterion = nn.MSELoss()    # NOTE: changed to MSELoss for reconstruction
     if model_type == "convAE": 
-        model = ConvAutoencoder()
+        model = ConvAutoencoderV2()
     else:
         raise Exception("Model not defined! ")
     model.to(device)
@@ -337,7 +337,7 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     criterion = nn.MSELoss()    # NOTE: changed to MSELoss for reconstruction
     if model_type == "convAE": 
-        model = ConvAutoencoder()
+        model = ConvAutoencoderV2()
     else:
         raise Exception("Model not defined! ")
     model.to(device)
