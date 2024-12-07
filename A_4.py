@@ -615,7 +615,7 @@ if __name__ == "__main__":
             mymap = TokenMap(mylist)
 
             dg_cons_train = ConstructDatasetGroup(
-                src_path=src_man_, 
+                src_path=src_mansim_, 
                 all_meta_filename="meta_train.pkl", # NOTE: using csv this time, but csv and pkl are the same content. 
                                                     # NOTE: A4 using pkl, because provided. 
                 target_dir=guides_dir, 
@@ -623,7 +623,7 @@ if __name__ == "__main__":
                 # pre_select={"stress_type": [1, 2, 3, 4]}
             )
             dg_cons_valid = ConstructDatasetGroup(
-                src_path=src_man_, 
+                src_path=src_mansim_, 
                 all_meta_filename="meta_test.pkl",   # NOTE: we are actually using the test set as validation set, but it is fine, just switch. 
                 target_dir=guides_dir,
                 target_name="valid", 
