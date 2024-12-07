@@ -52,6 +52,8 @@ class DataLoader():
                 self.metadata = pandas.read_csv(self.metapath)
             except FileNotFoundError: 
                 raise FileNotFoundError('meta file not found.')
+            
+        self.metadata = self.metadata.reset_index(drop=True)    # NOTE: reset index to avoid index mismatch
 
         return self.metadata
     
@@ -73,7 +75,6 @@ class DataLoader():
         try:
             filepaths = self.metadata[datatype+"_path"]
             datasize = len(filepaths)
-            print("TEST: ", datasize)
         except KeyError:
             raise KeyError('datatype not found.')
         if amount <= 0 or amount > datasize:
