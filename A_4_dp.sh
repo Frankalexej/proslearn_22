@@ -19,7 +19,7 @@ echo "Timestamp: $ts"
 # ts="0121181130"
 
 # Loop from 1 to 10, incrementing by 1
-for (( i=1; i<=5; i++ )); do
+for (( i=1; i<=1; i++ )); do
     # Loop over each combination of arguments
     python A_4.py -ts "$ts-$i" -dp &
 done

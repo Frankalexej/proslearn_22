@@ -42,9 +42,9 @@ class ConstructDatasetGroup:
         all_meta['index'] = all_meta.index  # add index column for later use. USED? 
         # filter the metadata before any data is noted down. 
         # all_meta_filtered = ConstructDatasetGroup.filter_dataframe(all_meta, pre_select)
-        all_meta_filtered = all_meta
-        raw_data_loader.update_metadata(all_meta_filtered)  # update the metadata in the dataloader.
-        all_size = len(all_meta_filtered)    # size of the whole dataset.
+        # all_meta_filtered = all_meta
+        # raw_data_loader.update_metadata(all_meta_filtered)  # update the metadata in the dataloader.
+        all_size = len(all_meta)    # size of the whole dataset.
 
         # self.all_meta = all_meta_filtered
         self.all_size = all_size

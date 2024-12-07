@@ -32,8 +32,8 @@ class DataLoader():
         self.typedict = ['spectrograms','mels','highpass_spectrograms','lowpass_spectrograms','highpass_mels','lowpass_mels']
         self.metapath = None
         self.metadata = None
-        self.filepaths = None
-        self.datasize = None
+        # self.filepaths = None
+        # self.datasize = None
     def get_metadata(self,metapath:os.PathLike) -> pandas.DataFrame:
         '''
         initialize dataloader for certain type of data
@@ -71,15 +71,16 @@ class DataLoader():
         :return: a list of data, indexes in the metafile
         '''
         try:
-            self.filepaths = self.metadata[datatype+"_path"]
-            self.datasize = len(self.filepaths)
+            filepaths = self.metadata[datatype+"_path"]
+            datasize = len(filepaths)
+            print("TEST: ", datasize)
         except KeyError:
             raise KeyError('datatype not found.')
-        if amount <= 0 or amount > self.datasize:
-            raise ValueError(f'amount must be between 0 and {self.datasize}.')
+        if amount <= 0 or amount > datasize:
+            raise ValueError(f'amount must be between 0 and {datasize}.')
         if indexes is None:
-            indexes = np.random.choice(self.datasize,amount)
-        selected_data = [np.load(f) for f in self.filepaths[indexes]]
+            indexes = np.random.choice(datasize,amount)
+        selected_data = [np.load(f) for f in filepaths[indexes]]
         return selected_data,indexes
 
 
