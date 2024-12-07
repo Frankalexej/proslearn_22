@@ -580,7 +580,7 @@ if __name__ == "__main__":
     configs = {
         "num_dataset": 50,
         "size_train": 1600, 
-        "size_valid": 320,
+        "size_valid": 400,
         "data_type": "mel",
         "total_epochs": 300, # for lower pre-training conditions we lower the final epoch to 300, because we found no much learning afterwards. 
         "lr": 1e-4,
