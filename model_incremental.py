@@ -143,7 +143,9 @@ class SubsetCache:
         
         # Load from disk if not in cache
         dataset = self.dataset_class(subset_meta_path, subset_data_path, subset_mapper)
-        dataloder = DataLoader(dataset, batch_size=self.batch_size, shuffle=shuffle, num_workers=self.loader_worker)
+        dataloder = DataLoader(dataset, batch_size=self.batch_size, 
+                               shuffle=shuffle, num_workers=self.loader_worker, 
+                               drop_last=True)
         
         # Add to cache
         if len(self.cache) >= self.max_cache_size:
