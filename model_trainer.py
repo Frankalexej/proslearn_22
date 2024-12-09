@@ -184,7 +184,10 @@ class ReconstructionTrainer:
         
         # self.scheduler.step()
         last_model_name = f"{epoch}.pt"
-        torch.save(self.model.state_dict(), os.path.join(self.model_save_dir, last_model_name))
+        torch.save({
+            "model_state_dict": self.model.state_dict(), 
+            "optimizer_state_dict": self.optimizer.state_dict(), 
+        }, os.path.join(self.model_save_dir, last_model_name))
 
         avg_train_loss = train_loss / train_num
         avg_train_correct = 0   # train_correct / train_total, but we do not have this. 
