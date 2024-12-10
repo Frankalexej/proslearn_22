@@ -135,7 +135,7 @@ def run_once_continue(hyper_dir, model_type="large", pretype="f", posttype="f", 
     elif model_type == "lstm": 
         model = LSTMNetwork()
     elif model_type == "twoconvCNN": 
-        model = TwoConvNetwork()        
+        model = TwoConvNetwork(out_features=configs["output_dim"])        
     else:
         raise Exception("Model not defined! ")
     model.to(device)
@@ -371,7 +371,7 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
     elif model_type == "lstm": 
         model = LSTMNetwork()
     elif model_type == "twoconvCNN": 
-        model = TwoConvNetwork()
+        model = TwoConvNetwork(out_features=configs["output_dim"])  # 20241211 Frank: added output_dim = 4
     else:
         raise Exception("Model not defined! ")
     model.to(device)

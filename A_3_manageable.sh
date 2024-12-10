@@ -11,7 +11,7 @@ generate_random_number() {
 }
 
 # Arrays of options for each argument
-ps=('h')
+ps=('l' 'h')
 ms=('twoconvCNN')
 pres=(10 20 30 40 50 60 70 80 90 100 150)
 # pres=(1)
@@ -19,7 +19,7 @@ ss=('full')
 
 # Generate a 10-digit random number
 ts=$(date +"%m%d%H%M%S")
-ts="1126125730"
+ts="1211014530" # this run limits prediction dimension 4, just like A_4
 echo "Timestamp: $ts"
 # ts="0121181130"
 
