@@ -77,6 +77,32 @@ def draw_learning_curve_and_accuracy(losses, accs, epoch="", best_val=None, save
         plt.savefig(save_name)
     # plt.close()
 
+def draw_learning_curve_and_accuracy_nonfull(losses, accs, epoch="", best_val=None, save=False, save_name=""): 
+    plt.clf()
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+    low_valid_losses, high_valid_losses = losses
+    low_valid_accs, high_valid_accs = accs
+
+    # Plot Loss on the left subplot
+    ax1.plot(low_valid_losses, label='Low Valid')
+    ax1.plot(high_valid_losses, label='High Valid')
+    ax1.set_title("Learning Curve Loss" + f" {epoch}")
+    ax1.legend(loc="upper right")
+
+    # Plot Accuracy on the right subplot
+    ax2.plot(low_valid_accs, label='Low Valid')
+    ax2.plot(high_valid_accs, label='High Valid')
+    ax2.set_title('Learning Curve Accuracy' + f" {epoch}")
+    ax2.legend(loc="lower right")
+
+    # Display the plots
+    plt.tight_layout()
+    plt.xlabel("Epoch")
+    display.clear_output(wait=True)
+    display.display(plt.gcf())
+    if save: 
+        plt.savefig(save_name)
+    # plt.close()
 
 def run_once_continue(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full", preepochs=20, postepochs=20, configs={}): 
     """
@@ -562,10 +588,253 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
                                     save_name=f"{model_save_dir}/vis.png")
 
 
+def run_once_eval_only(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full", preepochs=20, postepochs=20, configs={}): 
+    """
+    Frank's Note: 
+    This is the function for running only the validation once. 
+    Although it is to be called by a "main" function, this whole .py file only runs the training once. 
+    Multiple runnings are implemented with multi-processing using bash scripts (.sh).
+
+    Args: 
+        hyper_dir (str): the uppermost saving directory under model_save_, named as runner_name-timestamp-run_number. 
+        model_type (str): The type of model to be used. This includes "small", "medium", "large", "reslin", "lstm", etc. 
+        pretype (str): The type of data to be used for the first phase of training. f=full, l=low, h=high. Default is "f".
+        posttype (str): The type of data to be used for the second phase of training. Same as pretype. Default is "f".
+        sel (str): Selected phoneme types, full, c=consonants, v=vowels. Default is "full". *Now only using full*
+        preepochs (int): The number of epochs for the first phase of training. Default is 20.
+        postepochs (int): The number of epochs for the second phase of training. Default is 20.
+    """
+
+    model_save_dir = os.path.join(hyper_dir, f"{model_type}-{preepochs}-{postepochs}", sel, f"{pretype}{posttype}")
+    mk(model_save_dir)
+    guides_dir = os.path.join(hyper_dir, "guides")
+
+    # Loss Recording
+    # train_losses = ListRecorder(os.path.join(model_save_dir, "train.loss"))
+    # valid_losses = ListRecorder(os.path.join(model_save_dir, "valid.loss"))
+    # full_valid_losses = ListRecorder(os.path.join(model_save_dir, "full_valid.loss"))
+    # train_accs = ListRecorder(os.path.join(model_save_dir, "train.acc"))
+    # valid_accs = ListRecorder(os.path.join(model_save_dir, "valid.acc"))
+    # full_valid_accs = ListRecorder(os.path.join(model_save_dir, "full_valid.acc"))
+    # We additionally include these so as to check what happens to the model during the transition from non-full to full training. 
+    low_valid_losses = ListRecorder(os.path.join(model_save_dir, "low_valid.loss"))
+    high_valid_losses = ListRecorder(os.path.join(model_save_dir, "high_valid.loss"))
+    low_valid_accs = ListRecorder(os.path.join(model_save_dir, "low_valid.acc"))
+    high_valid_accs = ListRecorder(os.path.join(model_save_dir, "high_valid.acc"))
+
+    # Initialize Model
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    criterion = nn.CrossEntropyLoss()
+    if model_type == "small":
+        model = SmallNetwork()
+    elif model_type == "medium":
+        model = MediumNetwork()
+    elif model_type == "large": 
+        model = LargeNetwork()
+    elif model_type == "reslin": 
+        model = ResLinearNetwork()
+    elif model_type == "lstm": 
+        model = LSTMNetwork()
+    elif model_type == "twoconvCNN": 
+        model = TwoConvNetwork(out_features=configs["output_dim"])  # 20241211 Frank: added output_dim = 4
+    else:
+        raise Exception("Model not defined! ")
+    model.to(device)
+    optimizer = optim.Adam(model.parameters(), lr=configs["lr"])
+    
+    mylist = ["1", "2", "3", "4"]
+    mymap = TokenMap(mylist)
+
+    # # Trainer
+    # trainer = ModelTrainer(model=model, 
+    #                        criterion=criterion, 
+    #                        optimizer=optimizer, 
+    #                        model_save_dir=model_save_dir, device=device)
+    # Dataset Loaders
+    # pool messanger
+    pool_messanger = PoolMessanger(configs["num_dataset"], configs["data_type_mapper"][pretype], configs["data_type_mapper"][posttype], guides_dir)
+
+    # NOTE: Subset Cache, this is to manage the reading of datasets. Should be transparent to user. 
+    # train_cache = SubsetCache(max_cache_size=configs["max_cache_size_train"], dataset_class=ThisDataset)
+    # valid_cache = SubsetCache(max_cache_size=configs["max_cache_size_valid"], dataset_class=ThisDataset)
+    # full_valid_cache = SubsetCache(max_cache_size=configs["max_cache_size_valid"], dataset_class=ThisDataset)
+    low_valid_cache = SubsetCache(max_cache_size=configs["max_cache_size_valid"], dataset_class=ThisDataset)
+    high_valid_cache = SubsetCache(max_cache_size=configs["max_cache_size_valid"], dataset_class=ThisDataset)
+
+    # Learning Path Planner
+    # planner = LearningPathPlanner(dataset_ids=pool_messanger.get_pool(), 
+    #                               total_epochs=configs["total_epochs"] + 1, # +1 because we have a pre-learning baseline. 
+    #                               p1=configs["lpp_configs"]["p1"], 
+    #                               decay_rate=configs["lpp_configs"]["decay_rate"])
+    
+    # generate the plan and save for reference
+    learning_plan = pd.read_csv(os.path.join(model_save_dir, "learning_plan.csv"))["dataset_id"].tolist()
+    # learning_plan = planner.generate_learning_path()
+    # learning_plan_df = pd.DataFrame(learning_plan, columns=['dataset_id'])
+    # learning_plan_df.to_csv(os.path.join(model_save_dir, "learning_plan.csv"), index=False)
+    """
+    Currently we are using the same number of training and validation datasets. 
+    TODO: In the future, if we want smaller number of validation datasets, we need to have two plans for training and validation independently. 
+    """
+
+    """Training"""
+    """No Learning Baseline Get"""
+    for epoch in range(0, 1): 
+        # The model is new, and we just test this. 
+        # Trainer
+        trainer = ModelTrainer(model=model, 
+                            criterion=criterion, 
+                            optimizer=optimizer, 
+                            model_save_dir=model_save_dir, device=device)
+
+        # Validation Data Low
+        dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params_nonfull(dataset_id,
+                                                                            eval_type="valid", 
+                                                                            filter_type="low")
+        low_valid_loader = low_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        low_valid_loss, low_valid_acc = trainer.evaluate(low_valid_loader)
+        low_valid_losses.append(low_valid_loss)
+        low_valid_accs.append(low_valid_acc)
+
+        # Validation Data High
+        dataset_id = learning_plan[epoch]
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params_nonfull(dataset_id,
+                                                                            eval_type="valid", 
+                                                                            filter_type="high")
+        high_valid_loader = high_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        high_valid_loss, high_valid_acc = trainer.evaluate(high_valid_loader)
+        high_valid_losses.append(high_valid_loss)
+        high_valid_accs.append(high_valid_acc)
+        
+
+    # train_losses.save()
+    # valid_losses.save()
+    # full_valid_losses.save()
+    # train_accs.save()
+    # valid_accs.save()
+    # full_valid_accs.save()
+    low_valid_losses.save()
+    high_valid_losses.save()
+    low_valid_accs.save()
+    high_valid_accs.save()
+
+    # Train (I)
+    base_epoch = 1
+
+    for epoch in range(base_epoch, base_epoch + preepochs): 
+        print(f"Epoch {epoch}")
+        # Load model
+        model_path = os.path.join(model_save_dir, f"{epoch}.pt")
+        model.load_state_dict(torch.load(model_path, weights_only=True))
+        # Trainer
+        trainer = ModelTrainer(model=model, 
+                            criterion=criterion, 
+                            optimizer=optimizer, 
+                            model_save_dir=model_save_dir, device=device)
+        
+        # Validation Data Low
+        dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params_nonfull(dataset_id,
+                                                                            eval_type="valid", 
+                                                                            filter_type="low")
+        low_valid_loader = low_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        low_valid_loss, low_valid_acc = trainer.evaluate(low_valid_loader)
+        low_valid_losses.append(low_valid_loss)
+        low_valid_accs.append(low_valid_acc)
+
+        # Validation Data High
+        dataset_id = learning_plan[epoch]
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params_nonfull(dataset_id,
+                                                                            eval_type="valid", 
+                                                                            filter_type="high")
+        high_valid_loader = high_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        high_valid_loss, high_valid_acc = trainer.evaluate(high_valid_loader)
+        high_valid_losses.append(high_valid_loss)
+        high_valid_accs.append(high_valid_acc)
+
+        # train_losses.save()
+        # valid_losses.save()
+        # full_valid_losses.save()
+        # train_accs.save()
+        # valid_accs.save()
+        # full_valid_accs.save()
+        low_valid_losses.save()
+        high_valid_losses.save()
+        low_valid_accs.save()
+        high_valid_accs.save()
+
+        if epoch % 10 == 0:
+            draw_learning_curve_and_accuracy_nonfull(losses=(low_valid_losses.get(), high_valid_losses.get()),
+                                    accs=(low_valid_accs.get(), high_valid_accs.get()),
+                                    epoch=str(epoch), 
+                                    save=True, 
+                                    save_name=f"{model_save_dir}/vis_nonfull.png")
+
+    # Train (II)
+    base_epoch_II = base_epoch + preepochs
+    # pool_messanger.turn_on_full()   # turn on full data   # Now we do not turn on full (but this does not affect)
+    for epoch in range(base_epoch_II, base_epoch_II + postepochs):
+        print(f"Epoch {epoch}")
+        # Load model
+        model_path = os.path.join(model_save_dir, f"{epoch}.pt")
+        model.load_state_dict(torch.load(model_path, weights_only=True))
+        # Trainer
+        trainer = ModelTrainer(model=model, 
+                            criterion=criterion, 
+                            optimizer=optimizer, 
+                            model_save_dir=model_save_dir, device=device)
+        
+        # Validation Data Low
+        dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params_nonfull(dataset_id,
+                                                                            eval_type="valid", 
+                                                                            filter_type="low")
+        low_valid_loader = low_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        low_valid_loss, low_valid_acc = trainer.evaluate(low_valid_loader)
+        low_valid_losses.append(low_valid_loss)
+        low_valid_accs.append(low_valid_acc)
+
+        # Validation Data High
+        dataset_id = learning_plan[epoch]
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params_nonfull(dataset_id,
+                                                                            eval_type="valid", 
+                                                                            filter_type="high")
+        high_valid_loader = high_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        high_valid_loss, high_valid_acc = trainer.evaluate(high_valid_loader)
+        high_valid_losses.append(high_valid_loss)
+        high_valid_accs.append(high_valid_acc)
+
+        # train_losses.save()
+        # valid_losses.save()
+        # full_valid_losses.save()
+        # train_accs.save()
+        # valid_accs.save()
+        # full_valid_accs.save()
+        low_valid_losses.save()
+        high_valid_losses.save()
+        low_valid_accs.save()
+        high_valid_accs.save()
+
+        if epoch % 10 == 0:
+            draw_learning_curve_and_accuracy_nonfull(losses=(low_valid_losses.get(), high_valid_losses.get()),
+                                    accs=(low_valid_accs.get(), high_valid_accs.get()),
+                                    epoch=str(epoch), 
+                                    save=True, 
+                                    save_name=f"{model_save_dir}/vis_nonfull.png")
+
+    draw_learning_curve_and_accuracy_nonfull(losses=(low_valid_losses.get(), high_valid_losses.get()),
+                                    accs=(low_valid_accs.get(), high_valid_accs.get()),
+                                    epoch=str(base_epoch_II + postepochs), 
+                                    save=True, 
+                                    save_name=f"{model_save_dir}/vis_nonfull.png")
+
+
 if __name__ == "__main__": 
     parser = argparse.ArgumentParser(description='argparse')
     parser.add_argument('--dataprepare', '-dp', action="store_true")
     parser.add_argument('--traincontinue', '-ct', action="store_true")
+    parser.add_argument('--nonfulleval', '-ne', action="store_true")
     parser.add_argument('--timestamp', '-ts', type=str, default="0000000000", help="Timestamp for project, better be generated by bash")
     parser.add_argument('--gpu', '-gpu', type=int, default=0, help="Choose the GPU to work on")
     parser.add_argument('--model','-m',type=str, default = "large",help="Model type: small, medium, large, and others")
@@ -669,6 +938,11 @@ if __name__ == "__main__":
             # else: 
             #     run_once(model_save_dir, model_type=args.model, pretype=args.pretype, posttype="f", sel=args.select, 
             #                 preepochs=args.preepochs, postepochs=(configs["total_epochs"] - args.preepochs), configs=configs)
+        elif args.nonfulleval: 
+            print("Non-full Evaluation")
+            torch.cuda.set_device(args.gpu)
+            run_once_eval_only(model_save_dir, model_type=args.model, pretype=args.pretype, posttype="f", sel=args.select, 
+                        preepochs=args.preepochs, postepochs=(configs["total_epochs"] - args.preepochs), configs=configs)
         else: 
             torch.cuda.set_device(args.gpu)
             run_once(model_save_dir, model_type=args.model, pretype=args.pretype, posttype="f", sel=args.select, 
