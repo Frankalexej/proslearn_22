@@ -313,3 +313,10 @@ class PoolMessanger:
             data_path = f"valid-full-{dataset_id}.{self.DATA_SUFFIX}"
 
         return dataset_id, os.path.join(self.read_dir, meta_path), os.path.join(self.read_dir, data_path)
+    
+    def get_loading_params_nonfull(self, dataset_id, eval_type="valid", filter_type="low"): 
+        eval_type = "valid" # only valid is allowed.
+        meta_path = f"{eval_type}-{dataset_id}.{self.META_SUFFIX}"
+        data_path = f"{eval_type}-{filter_type}-{dataset_id}.{self.DATA_SUFFIX}"
+
+        return dataset_id, os.path.join(self.read_dir, meta_path), os.path.join(self.read_dir, data_path)
