@@ -77,6 +77,39 @@ def draw_learning_curve_and_accuracy(losses, accs, epoch="", best_val=None, save
         plt.savefig(save_name)
     # plt.close()
 
+def draw_learning_curve_and_accuracy_lh(losses, accs, epoch="", best_val=None, save=False, save_name=""): 
+    plt.clf()
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
+    train_losses, low_valid_losses, high_valid_losses, full_valid_losses = losses
+    train_accs, low_valid_accs, high_valid_accs, full_valid_accs = accs
+
+    # Plot Loss on the left subplot
+    ax1.plot(train_losses, label='Train')
+    # ax1.plot(valid_losses, label='Valid')
+    ax1.plot(low_valid_losses, label='Low Valid')
+    ax1.plot(high_valid_losses, label='High Valid')
+    ax1.plot(full_valid_losses, label='Full Valid')
+    ax1.set_title("Learning Curve Loss" + f" {epoch}")
+    ax1.legend(loc="upper right")
+
+    # Plot Accuracy on the right subplot
+    ax2.plot(train_accs, label='Train')
+    # ax2.plot(valid_accs, label='Valid')
+    ax2.plot(low_valid_accs, label='Low Valid')
+    ax2.plot(high_valid_accs, label='High Valid')
+    ax2.plot(full_valid_accs, label='Full Valid')
+    ax2.set_title('Learning Curve Accuracy' + f" {epoch}")
+    ax2.legend(loc="lower right")
+
+    # Display the plots
+    plt.tight_layout()
+    plt.xlabel("Epoch")
+    display.clear_output(wait=True)
+    display.display(plt.gcf())
+    if save: 
+        plt.savefig(save_name)
+    # plt.close()
+
 def draw_learning_curve_and_accuracy_nonfull(losses, accs, epoch="", best_val=None, save=False, save_name=""): 
     plt.clf()
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 4))
@@ -357,7 +390,7 @@ def run_once_continue(hyper_dir, model_type="large", pretype="f", posttype="f", 
 
 
 
-def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full", preepochs=20, postepochs=20, configs={}): 
+def run_once(hyper_dir_read, hyper_dir_save, model_type="large", pretype="f", posttype="f", sel="full", preepochs=20, postepochs=20, configs={}): 
     """
     Frank's Note: 
     This is the function for running the training and simultaneous validation once. 
@@ -374,16 +407,20 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
         postepochs (int): The number of epochs for the second phase of training. Default is 20.
     """
 
-    model_save_dir = os.path.join(hyper_dir, f"{model_type}-{preepochs}-{postepochs}", sel, f"{pretype}{posttype}")
+    model_save_dir = os.path.join(hyper_dir_save, f"{model_type}-{preepochs}-{postepochs}", sel, f"{pretype}{posttype}")
     mk(model_save_dir)
-    guides_dir = os.path.join(hyper_dir, "guides")
+    guides_dir = os.path.join(hyper_dir_read, "guides")
 
     # Loss Recording
     train_losses = ListRecorder(os.path.join(model_save_dir, "train.loss"))
-    valid_losses = ListRecorder(os.path.join(model_save_dir, "valid.loss"))
+    # valid_losses = ListRecorder(os.path.join(model_save_dir, "valid.loss"))
+    low_valid_losses = ListRecorder(os.path.join(model_save_dir, "low_valid.loss"))
+    high_valid_losses = ListRecorder(os.path.join(model_save_dir, "high_valid.loss"))
     full_valid_losses = ListRecorder(os.path.join(model_save_dir, "full_valid.loss"))
     train_accs = ListRecorder(os.path.join(model_save_dir, "train.acc"))
-    valid_accs = ListRecorder(os.path.join(model_save_dir, "valid.acc"))
+    # valid_accs = ListRecorder(os.path.join(model_save_dir, "valid.acc"))
+    low_valid_accs = ListRecorder(os.path.join(model_save_dir, "low_valid.acc"))
+    high_valid_accs = ListRecorder(os.path.join(model_save_dir, "high_valid.acc"))
     full_valid_accs = ListRecorder(os.path.join(model_save_dir, "full_valid.acc"))
 
     # Initialize Model
@@ -435,7 +472,9 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
 
     # NOTE: Subset Cache, this is to manage the reading of datasets. Should be transparent to user. 
     train_cache = SubsetCache(max_cache_size=configs["max_cache_size_train"], dataset_class=ThisDataset)
-    valid_cache = SubsetCache(max_cache_size=configs["max_cache_size_valid"], dataset_class=ThisDataset)
+    # valid_cache = SubsetCache(max_cache_size=configs["max_cache_size_valid"], dataset_class=ThisDataset)
+    low_valid_cache = SubsetCache(max_cache_size=configs["max_cache_size_valid"], dataset_class=ThisDataset)
+    high_valid_cache = SubsetCache(max_cache_size=configs["max_cache_size_valid"], dataset_class=ThisDataset)
     full_valid_cache = SubsetCache(max_cache_size=configs["max_cache_size_valid"], dataset_class=ThisDataset)
 
     # Learning Path Planner
@@ -465,14 +504,34 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
         train_losses.append(train_loss)
         train_accs.append(train_acc)
 
-        # Validation Data
+        # # Validation Data
+        # dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
+        # dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
+        #                                                                     eval_type="valid")
+        # valid_loader = valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        # valid_loss, valid_acc = trainer.evaluate(valid_loader)
+        # valid_losses.append(valid_loss)
+        # valid_accs.append(valid_acc)
+
+        # Low Validation Data
         dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
-        dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
-                                                                            eval_type="valid")
-        valid_loader = valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
-        valid_loss, valid_acc = trainer.evaluate(valid_loader)
-        valid_losses.append(valid_loss)
-        valid_accs.append(valid_acc)
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params_nonfull(dataset_id,
+                                                                            eval_type="valid", 
+                                                                            filter_type="low")
+        low_valid_loader = low_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        low_valid_loss, low_valid_acc = trainer.evaluate(low_valid_loader)
+        low_valid_losses.append(low_valid_loss)
+        low_valid_accs.append(low_valid_acc)
+
+        # High Validation Data
+        dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params_nonfull(dataset_id,
+                                                                            eval_type="valid", 
+                                                                            filter_type="high")
+        high_valid_loader = high_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        high_valid_loss, high_valid_acc = trainer.evaluate(high_valid_loader)
+        high_valid_losses.append(high_valid_loss)
+        high_valid_accs.append(high_valid_acc)
 
         # Full Validation Data
         dataset_id = learning_plan[epoch]
@@ -483,10 +542,14 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
         full_valid_losses.append(full_valid_loss)
         full_valid_accs.append(full_valid_acc)
     train_losses.save()
-    valid_losses.save()
+    # valid_losses.save()
+    low_valid_losses.save()
+    high_valid_losses.save()
     full_valid_losses.save()
     train_accs.save()
-    valid_accs.save()
+    # valid_accs.save()
+    low_valid_accs.save()
+    high_valid_accs.save()
     full_valid_accs.save()
 
     # Train (I)
@@ -503,14 +566,34 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
         train_losses.append(train_loss)
         train_accs.append(train_acc)
 
-        # Validation Data
+        # # Validation Data
+        # dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
+        # dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
+        #                                                                     eval_type="valid")
+        # valid_loader = valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        # valid_loss, valid_acc = trainer.evaluate(valid_loader)
+        # valid_losses.append(valid_loss)
+        # valid_accs.append(valid_acc)
+
+        # Low Validation Data
         dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
-        dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
-                                                                            eval_type="valid")
-        valid_loader = valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
-        valid_loss, valid_acc = trainer.evaluate(valid_loader)
-        valid_losses.append(valid_loss)
-        valid_accs.append(valid_acc)
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params_nonfull(dataset_id,
+                                                                            eval_type="valid", 
+                                                                            filter_type="low")
+        low_valid_loader = low_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        low_valid_loss, low_valid_acc = trainer.evaluate(low_valid_loader)
+        low_valid_losses.append(low_valid_loss)
+        low_valid_accs.append(low_valid_acc)
+
+        # High Validation Data
+        dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params_nonfull(dataset_id,
+                                                                            eval_type="valid", 
+                                                                            filter_type="high")
+        high_valid_loader = high_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        high_valid_loss, high_valid_acc = trainer.evaluate(high_valid_loader)
+        high_valid_losses.append(high_valid_loss)
+        high_valid_accs.append(high_valid_acc)
 
         # Full Validation Data
         dataset_id = learning_plan[epoch]
@@ -522,15 +605,19 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
         full_valid_accs.append(full_valid_acc)
 
         train_losses.save()
-        valid_losses.save()
+        # valid_losses.save()
+        low_valid_losses.save()
+        high_valid_losses.save()
         full_valid_losses.save()
         train_accs.save()
-        valid_accs.save()
+        # valid_accs.save()
+        low_valid_accs.save()
+        high_valid_accs.save()
         full_valid_accs.save()
 
         if epoch % 10 == 0:
-            draw_learning_curve_and_accuracy(losses=(train_losses.get(), valid_losses.get(), full_valid_losses.get()), 
-                                    accs=(train_accs.get(), valid_accs.get(), full_valid_accs.get()),
+            draw_learning_curve_and_accuracy_lh(losses=(train_losses.get(), low_valid_losses.get(), high_valid_losses.get(), full_valid_losses.get()),
+                                    accs=(train_accs.get(), low_valid_accs.get(), high_valid_accs.get(), full_valid_accs.get()),
                                     epoch=str(epoch), 
                                     save=True, 
                                     save_name=f"{model_save_dir}/vis.png")
@@ -549,14 +636,34 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
         train_losses.append(train_loss)
         train_accs.append(train_acc)
 
-        # Validation Data
+        # # Validation Data
+        # dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
+        # dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
+        #                                                                     eval_type="valid")
+        # valid_loader = valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        # valid_loss, valid_acc = trainer.evaluate(valid_loader)
+        # valid_losses.append(valid_loss)
+        # valid_accs.append(valid_acc)
+
+        # Low Validation Data
         dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
-        dataset_id, meta_path, data_path = pool_messanger.get_loading_params(dataset_id,
-                                                                            eval_type="valid")
-        valid_loader = valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
-        valid_loss, valid_acc = trainer.evaluate(valid_loader)
-        valid_losses.append(valid_loss)
-        valid_accs.append(valid_acc)
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params_nonfull(dataset_id,
+                                                                            eval_type="valid", 
+                                                                            filter_type="low")
+        low_valid_loader = low_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        low_valid_loss, low_valid_acc = trainer.evaluate(low_valid_loader)
+        low_valid_losses.append(low_valid_loss)
+        low_valid_accs.append(low_valid_acc)
+
+        # High Validation Data
+        dataset_id = learning_plan[epoch]   # this repetition serves for later multi-plan usage. 
+        dataset_id, meta_path, data_path = pool_messanger.get_loading_params_nonfull(dataset_id,
+                                                                            eval_type="valid", 
+                                                                            filter_type="high")
+        high_valid_loader = high_valid_cache.get_subset(dataset_id, meta_path, data_path, mymap)
+        high_valid_loss, high_valid_acc = trainer.evaluate(high_valid_loader)
+        high_valid_losses.append(high_valid_loss)
+        high_valid_accs.append(high_valid_acc)
 
         # Full Validation Data
         dataset_id = learning_plan[epoch]
@@ -568,21 +675,25 @@ def run_once(hyper_dir, model_type="large", pretype="f", posttype="f", sel="full
         full_valid_accs.append(full_valid_acc)
 
         train_losses.save()
-        valid_losses.save()
+        # valid_losses.save()
+        low_valid_losses.save()
+        high_valid_losses.save()
         full_valid_losses.save()
         train_accs.save()
-        valid_accs.save()
+        # valid_accs.save()
+        low_valid_accs.save()
+        high_valid_accs.save()
         full_valid_accs.save()
 
         if epoch % 10 == 0:
-            draw_learning_curve_and_accuracy(losses=(train_losses.get(), valid_losses.get(), full_valid_losses.get()), 
-                                    accs=(train_accs.get(), valid_accs.get(), full_valid_accs.get()),
+            draw_learning_curve_and_accuracy_lh(losses=(train_losses.get(), low_valid_losses.get(), high_valid_losses.get(), full_valid_losses.get()),
+                                    accs=(train_accs.get(), low_valid_accs.get(), high_valid_accs.get(), full_valid_accs.get()),
                                     epoch=str(epoch), 
                                     save=True, 
                                     save_name=f"{model_save_dir}/vis.png")
 
-    draw_learning_curve_and_accuracy(losses=(train_losses.get(), valid_losses.get(), full_valid_losses.get()), 
-                                    accs=(train_accs.get(), valid_accs.get(), full_valid_accs.get()),
+    draw_learning_curve_and_accuracy_lh(losses=(train_losses.get(), low_valid_losses.get(), high_valid_losses.get(), full_valid_losses.get()),
+                                    accs=(train_accs.get(), low_valid_accs.get(), high_valid_accs.get(), full_valid_accs.get()),
                                     epoch=str(base_epoch_II + postepochs), 
                                     save=True, 
                                     save_name=f"{model_save_dir}/vis.png")
@@ -836,6 +947,7 @@ if __name__ == "__main__":
     parser.add_argument('--traincontinue', '-ct', action="store_true")
     parser.add_argument('--nonfulleval', '-ne', action="store_true")
     parser.add_argument('--timestamp', '-ts', type=str, default="0000000000", help="Timestamp for project, better be generated by bash")
+    parser.add_argument('--read_timestamp', '-rts', type=str, default="0000000000", help="Timestamp for project to read")
     parser.add_argument('--gpu', '-gpu', type=int, default=0, help="Choose the GPU to work on")
     parser.add_argument('--model','-m',type=str, default = "large",help="Model type: small, medium, large, and others")
     parser.add_argument('--pretype','-p',type=str, default="f", help='Pretraining data type')
@@ -870,9 +982,12 @@ if __name__ == "__main__":
         ## Hyper-preparations
         # ts = str(get_timestamp())
         ts = args.timestamp
+        read_ts = args.read_timestamp
         train_name = "A4"
         model_save_dir = os.path.join(model_save_, f"{train_name}-{ts}")
-        print(f"{train_name}-{ts}")
+        model_read_dir = os.path.join(model_save_, f"{train_name}-{read_ts}")
+        assert os.path.exists(model_read_dir)
+        print(f"{train_name}-{ts}-{read_ts}")
         mk(model_save_dir) 
 
         if args.dataprepare: 
@@ -945,5 +1060,5 @@ if __name__ == "__main__":
                         preepochs=args.preepochs, postepochs=(configs["total_epochs"] - args.preepochs), configs=configs)
         else: 
             torch.cuda.set_device(args.gpu)
-            run_once(model_save_dir, model_type=args.model, pretype=args.pretype, posttype="f", sel=args.select, 
+            run_once(model_read_dir, model_save_dir, model_type=args.model, pretype=args.pretype, posttype="f", sel=args.select, 
                         preepochs=args.preepochs, postepochs=(configs["total_epochs"] - args.preepochs), configs=configs)
