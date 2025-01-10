@@ -19,7 +19,8 @@ ss=('full')
 
 # Generate a 10-digit random number
 ts=$(date +"%m%d%H%M%S")
-ts="1211014530" # this run limits prediction dimension 4, just like A_4
+ts="0110102530" # this run limits prediction dimension 4, just like A_4
+read_ts="1211014530" # this run limits prediction dimension 4, just like A_4
 echo "Timestamp: $ts"
 # ts="0121181130"
 
@@ -35,7 +36,7 @@ for (( i=1; i<=5; i++ )); do
                     post=$((200 - pre))
 
                     # Run the Python script with the current combination of arguments in the background
-                    python A_3.py -ts "$ts-$i" -p "$p" -m "$m" -s "$s" -gpu "$gpu" -pree "$pre" -poste "$post" &
+                    python A_3.py -ts "$ts-$i" -rts "$read_ts-$i" -p "$p" -m "$m" -s "$s" -gpu "$gpu" -pree "$pre" -poste "$post" &
                 done
             done
         done
