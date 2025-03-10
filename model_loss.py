@@ -31,14 +31,15 @@ class MultiLossManager:
     """
     Handles multiple loss calculations, applying weights dynamically.
     """
-    def __init__(self, loss_functions): 
+    def __init__(self, loss_functions, do_softmax=False): 
         """
         Args:
             loss_functions (dict): A dictionary mapping task names to their corresponding loss functions.
         """
         self.loss_functions = loss_functions  # Dictionary: {"task_name": loss_function}
         num_tasks = len(loss_functions)
-        self.reweighting_calculator = ReweightingCalculator(num_tasks)  # Initialize reweighting module
+        self.do_softmax = do_softmax
+        # self.reweighting_calculator = ReweightingCalculator(num_tasks)  # Initialize reweighting module
 
     def compute_weighted_loss(self, outputs, targets, task_logits):
         """
@@ -57,7 +58,11 @@ class MultiLossManager:
                        for task in self.loss_functions}
 
         # Step 2: Compute task loss weights from logits
-        loss_weights = self.reweighting_calculator(task_logits)  # Shape: (batch_size, num_tasks)
+        if self.do_softmax: 
+            loss_weights = torch.nn.functional.softmax(task_logits, dim=-1)
+        else: 
+            loss_weights = task_logits
+        # loss_weights = self.reweighting_calculator(task_logits)  # Shape: (batch_size, num_tasks)
 
         # Step 3: Compute weighted loss
         weighted_loss = 0.0
