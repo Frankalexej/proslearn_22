@@ -206,4 +206,3 @@ dependencies:
       - torchinfo==1.8.0
       - tqdm==4.67.1
       - ttach==0.0.3
-prefix: /home/franklhtan/anaconda3/envs/pros22

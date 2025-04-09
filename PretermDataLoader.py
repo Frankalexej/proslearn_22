@@ -28,7 +28,7 @@ class DataLoader():
         '''
         initialize a data loader
         '''
-        self.sourceFolder = sourceFolder    # Frank 20241105: changed to configurable sourceFolder path
+        self.sourceFolder = sourceFolder    # 20241105: changed to configurable sourceFolder path
         self.typedict = ['spectrograms','mels','highpass_spectrograms','lowpass_spectrograms','highpass_mels','lowpass_mels']
         self.metapath = None
         self.metadata = None
